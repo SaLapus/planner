@@ -118,13 +118,15 @@ export function feedModule(
 				const secret = randomBytes(32).toString('hex');
 				db.prepare('UPDATE feed_secret SET secret = ? WHERE id = 1').run(secret);
 				// The secret is deliberately NOT written to the Change log (it is shown in the UI).
-				record(actor, 'regenerate', 'feed', 1, null, null);
+				record(actor, 'feed.regenerate', 'feed', 1, null, null);
 				return secret;
 			});
 		},
 		calendarFeed() {
 			const cal = ical({
 				prodId: { company: 'selfserver', product: 'planner', language: 'RU' },
+				// Intentional exception to "no Russian in core": the feed is the owner's own calendar content
+				// (see README, Calendar feed), not UI chrome, so its fixed texts are Russian.
 				name: 'Планировщик'
 			});
 			// name: null keeps DTSTAMP in UTC ("...Z") while still adding a VTIMEZONE per used zone.

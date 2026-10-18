@@ -11,7 +11,10 @@
  * ("2026-03-30T09:00"). That is the RECURRENCE-ID of RFC 5545 and what exceptions and overrides key on.
  *
  * Behaviour pinned by tests: an occurrence whose wall-clock time does not exist (inside the
- * spring-forward gap) is skipped, and months without the day (BYMONTHDAY=31) are skipped.
+ * spring-forward gap) is shifted, per RFC 5545 section 3.3.10, using the offset from before the gap
+ * (03:30 in a 03:00-04:00 gap starts at 04:30; Temporal `disambiguation: 'compatible'`). It keeps its
+ * original wall clock as `recurrenceId` and counts toward COUNT. Months without the day
+ * (BYMONTHDAY=31) are skipped. A wall clock that happens twice (fall back) uses the earlier one.
  *
  * UNTIL may be written as a local date ("UNTIL=2026-06-30" or "20260630", inclusive, in the rule's
  * zone) or as RFC UTC form ("20260630T210000Z"). `toRfcRule` rewrites it to the RFC form for export.
@@ -78,10 +81,21 @@ function withUtcUntil(rrule: string, zone: string): string {
 	);
 }
 
-function build(spec: RuleSpec) {
+/**
+ * The rule expanded as FLOATING wall clocks (in UTC, no UNTIL): the library skips wall clocks that
+ * do not exist in the real zone, but those have to be shifted, not skipped. Callers map each
+ * wall clock into the real zone and apply UNTIL to the real instants.
+ */
+function buildFloating(spec: RuleSpec) {
+	const rrule = join(parts(spec.rrule).filter(([k]) => k !== 'UNTIL'));
 	return new RRuleTemporal({
-		rruleString: `${dtstart(spec)}\nRRULE:${withUtcUntil(spec.rrule, spec.timeZone)}`
+		rruleString: `${dtstart({ ...spec, timeZone: 'UTC' })}\nRRULE:${rrule}`
 	});
+}
+
+function untilOf(spec: RuleSpec): number | null {
+	const u = parts(spec.rrule).find(([k]) => k === 'UNTIL');
+	return u ? untilInstant(u[1], spec.timeZone).epochMilliseconds : null;
 }
 
 /**
@@ -103,7 +117,9 @@ export function normalizeRule(input: string): string {
 	const rule = join(ps);
 	try {
 		const probe: RuleSpec = { rrule: rule, startLocal: '2026-01-05T09:00', timeZone: 'UTC' };
-		build(probe).between(new Date(0), new Date(Date.UTC(2027, 0, 1)), true);
+		new RRuleTemporal({
+			rruleString: `${dtstart(probe)}\nRRULE:${withUtcUntil(probe.rrule, probe.timeZone)}`
+		}).between(new Date(0), new Date(Date.UTC(2027, 0, 1)), true);
 	} catch (e) {
 		throw new Error(`Invalid recurrence rule "${input}": ${(e as Error).message}`);
 	}
@@ -122,27 +138,35 @@ export function toRfcRule(spec: RuleSpec): string {
  */
 export function occurrencesBetween(spec: RuleSpec, fromMs: number, toMs: number): Occurrence[] {
 	if (toMs <= fromMs) return [];
-	return build(spec)
-		.between(new Date(fromMs), new Date(toMs), true)
-		.filter((z) => z.epochMilliseconds >= fromMs && z.epochMilliseconds < toMs)
-		.map((z) => ({
-			recurrenceId: z.toPlainDateTime().toString({ smallestUnit: 'minute' }),
-			start: z
-		}));
+	const margin = 2 * 24 * 60 * 60 * 1000; // wall clock vs instant differ by the UTC offset (at most about 14 h)
+	const until = untilOf(spec);
+	return buildFloating(spec)
+		.between(new Date(fromMs - margin), new Date(toMs + margin), true)
+		.map((f) => {
+			const wall = f.toPlainDateTime();
+			return {
+				recurrenceId: wall.toString({ smallestUnit: 'minute' }),
+				start: wall.toZonedDateTime(spec.timeZone, { disambiguation: 'compatible' })
+			};
+		})
+		.filter((o) => {
+			const t = o.start.epochMilliseconds;
+			return t >= fromMs && t < toMs && (until === null || t <= until);
+		});
 }
 
 /** The occurrence with this recurrenceId, or null if the rule does not produce one. */
 export function occurrenceAt(spec: RuleSpec, recurrenceId: string): Occurrence | null {
-	let local: Temporal.ZonedDateTime;
+	let wall: Temporal.PlainDateTime;
 	try {
-		local = Temporal.PlainDateTime.from(recurrenceId).toZonedDateTime(spec.timeZone, {
-			disambiguation: 'reject'
-		});
+		wall = Temporal.PlainDateTime.from(recurrenceId);
 	} catch {
 		return null;
 	}
-	const ms = local.epochMilliseconds;
-	return occurrencesBetween(spec, ms, ms + 1)[0] ?? null;
+	const ms = wall.toZonedDateTime(spec.timeZone, { disambiguation: 'compatible' }).epochMilliseconds;
+	const id = wall.toString({ smallestUnit: 'minute' });
+	// A shifted occurrence (gap) shares its instant with the wall clock after the gap: match the id too.
+	return occurrencesBetween(spec, ms, ms + 1).find((o) => o.recurrenceId === id) ?? null;
 }
 
 /** Number of occurrences that start before `cutoffLocal` (a wall clock in the rule's zone). */

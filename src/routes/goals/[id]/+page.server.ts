@@ -4,6 +4,7 @@ import { error, fail, redirect, type Action } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actor, GoalStatus } from '#lib/core/index.js';
 import type { Actions, PageServerLoad } from './$types';
+import { actorOf, errorText } from '#lib/server/request.js';
 
 export const load: PageServerLoad = ({ params }) => {
 	const planner = getPlanner();
@@ -21,11 +22,10 @@ export const load: PageServerLoad = ({ params }) => {
 const run =
 	(fn: (form: FormData, actor: Actor, goalId: number) => void): Action =>
 	async ({ request, locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		try {
-			fn(await request.formData(), locals.actor, Number(params.id));
+			fn(await request.formData(), actorOf(locals), Number(params.id));
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 	};
 
@@ -44,8 +44,7 @@ export const actions: Actions = {
 		getPlanner().setGoalStatus(actor, id, text(form, 'status') as GoalStatus);
 	}),
 	delete: async ({ locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
-		getPlanner().deleteItem(locals.actor, 'goal', Number(params.id)); // goes to /trash, can be restored
+		getPlanner().deleteItem(actorOf(locals), 'goal', Number(params.id)); // goes to /trash, can be restored
 		redirect(303, '/goals');
 	},
 

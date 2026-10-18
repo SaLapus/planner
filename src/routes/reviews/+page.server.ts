@@ -3,6 +3,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
+import { actorOf, errorText } from '#lib/server/request.js';
 
 export const load: PageServerLoad = () => {
 	const planner = getPlanner();
@@ -18,15 +19,14 @@ export const load: PageServerLoad = () => {
 
 export const actions: Actions = {
 	start: async ({ request, locals }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		const form = await request.formData();
 		const period = form.get('period') === 'month' ? 'month' : 'week';
 		let id: number;
 		try {
 			const planner = getPlanner();
-			id = (planner.reviewData({ period }).review ?? planner.createReview(locals.actor, { period })).id;
+			id = (planner.reviewData({ period }).review ?? planner.createReview(actorOf(locals), { period })).id;
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 		redirect(303, `/reviews/${id}`);
 	}

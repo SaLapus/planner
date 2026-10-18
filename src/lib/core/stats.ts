@@ -3,13 +3,13 @@
  *
  * One query, `stats`, returns three parts:
  *  - `habits`: per active Habit, its last N Periods (weeks or months, oldest first) with done/target,
- *    plus a hit-rate = % of CLOSED Periods that were met (the open Period is shown but not held against you);
+ *    (only Periods the Habit already existed in) plus a hit-rate = % of CLOSED Periods that were met (the open Period is shown but not held against you);
  *  - `tasksPerWeek`: Tasks completed in each of the last N Monday-start weeks (Home zone), zeros included;
  *  - `goals`: `goalProgress` of every active Goal.
  * It reuses `habitStatus` and `goalProgress`; it adds no rules of its own and writes nothing.
  */
 import type { CoreContext } from './context.js';
-import type { Habit, HabitApi, PeriodType } from './habits.js';
+import { habitExistedBy, type Habit, type HabitApi, type PeriodType } from './habits.js';
 import type { GoalApi, GoalProgress } from './goals.js';
 
 export interface HabitPeriodStat {
@@ -74,6 +74,8 @@ export function statsModule(ctx: CoreContext, habits: HabitApi, goals: GoalApi):
 				for (let i = periods - 1; i >= 0; i--) {
 					const date = (periodType === 'week' ? now.subtract({ weeks: i }) : now.subtract({ months: i })).toString();
 					const s = habits.habitStatus({ habitId: habit.id, date }).habits[0];
+					// Periods from before the Habit existed are not shown, and never count as unmet.
+					if (!habitExistedBy(habit, s.period.end, homeTimeZone)) continue;
 					list.push({
 						start: s.period.start,
 						end: s.period.end,

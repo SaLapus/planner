@@ -107,8 +107,32 @@ describe('Undo for Habits and Check-ins', () => {
 		planner.undoChange('owner', planner.changeLog().at(-1)!.id);
 		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-06']);
 
-		// The habit changed since creation (a check-in was added), so undoing the creation is refused.
-		expect(() => planner.undoChange('owner', createEntry.id)).toThrow(/Cannot undo/);
+		// Check-ins are separate entities: they do not block undoing the creation (= moving the Habit to
+		// Trash), and the history comes back with a restore.
+		planner.undoChange('owner', createEntry.id);
+		expect(planner.listHabits()).toEqual([]);
+		planner.restoreItem('owner', 'habit', h.id);
+		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-06']);
+	});
+
+	it('a later Check-in does not block undoing an earlier update or archive, and survives that undo', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-07T09:00:00.000Z' });
+		const h = gym(planner);
+		planner.updateHabit('owner', h.id, { title: 'Бассейн' });
+		const update = planner.changeLog().at(-1)!;
+		planner.archiveHabit('owner', h.id);
+		const archive = planner.changeLog().at(-1)!;
+		planner.unarchiveHabit('owner', h.id);
+		planner.addCheckin('owner', h.id, { date: '2026-01-06' });
+
+		// Newer Habit changes still block (unarchive came after archive) ...
+		expect(() => planner.undoChange('owner', archive.id)).toThrow(/Cannot undo/);
+		// ... but Check-ins alone do not.
+		planner.undoChange('owner', planner.changeLog().find((e) => e.action === 'habit.unarchive')!.id);
+		planner.undoChange('owner', archive.id);
+		planner.undoChange('owner', update.id);
+		expect(planner.listHabits()[0]).toMatchObject({ title: 'Зал' });
+		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-06']);
 	});
 
 	it('undo of a habit update is refused when the habit changed afterwards', () => {

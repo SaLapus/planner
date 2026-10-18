@@ -3,13 +3,9 @@
 import { fail, type Action } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actor } from '#lib/core/index.js';
-import { errorText, scheduleFromForm } from './schedule.js';
+import { scheduleFromForm } from './schedule.js';
 import type { Actions, PageServerLoad } from './$types';
-
-function actorOf(locals: App.Locals): Actor {
-	if (!locals.actor) throw new Error('Not authenticated');
-	return locals.actor;
-}
+import { actorOf, errorText } from '#lib/server/request.js';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
@@ -65,11 +61,7 @@ export const actions: Actions = {
 		const date = String(form.get('date'));
 		const planner = getPlanner();
 		if (form.get('on') === 'true') planner.addCheckin(actor, id, { date });
-		else {
-			const checkin = planner.checkinOn(id, date);
-			if (!checkin) throw new Error('Отметки на эту дату нет');
-			planner.deleteItem(actor, 'checkin', checkin.id); // goes to /trash, can be restored
-		}
+		else planner.removeCheckin(actor, id, date); // goes to /trash, can be restored
 	}),
 	archive: run((form, actor) => void getPlanner().archiveHabit(actor, Number(form.get('id')))),
 	unarchive: run((form, actor) => void getPlanner().unarchiveHabit(actor, Number(form.get('id')))),

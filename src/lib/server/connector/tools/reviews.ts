@@ -19,9 +19,9 @@ export const registerReviewTools: RegisterTools = (server, { planner, actor }) =
 				'Everything needed to write a weekly or monthly Review draft, in ONE call. Call this first, then save the draft with create_review (or update_review if the result\'s "review" field is not null). ' +
 				'Returns: period {type,start,end}; tasks.done (Tasks completed inside the period); ' +
 				'tasks.slipped (SLIPPED = Tasks still open whose due date is inside the period and already before today; Tasks completed later, without a due date, or due outside the period are not included); ' +
-				'habits (active Habits, each with periods = its own ISO weeks / months that ended inside the review period, hitRate = percent of those met or null if none could be judged, checkins = dates inside the period, streak as of the period end; ' +
+				'habits (Habits that existed during the period, including ones archived later, each with periods = its own ISO weeks / months that ended inside the review period, hitRate = percent of those met or null if none could be judged, checkins = dates inside the period, streak as of the period end; ' +
 				'for a month review a weekly Habit is judged over the ISO weeks that END in that month); ' +
-				'goals (progress of active Goals as of now: milestones done/total, linked Tasks and Habits); ' +
+				'goals (CURRENT progress of active Goals, NOT as of the period end - Milestone completion, links and Goal status are not time-stamped, so for a past period it can differ from what was true then: milestones done/total, linked Tasks and Habits); ' +
 				'review (the Review already saved for this period, or null). Content is returned as the owner wrote it (often Russian). The owner reads Reviews in Russian, so write the draft in Russian unless asked otherwise.',
 			inputSchema: z.object({ period, date })
 		},

@@ -112,7 +112,8 @@ export function safetyModule(ctx: CoreContext): SafetyApi {
 			return null;
 		}
 		// Otherwise the entity must still be exactly as this entry left it.
-		if (!current || canonical(current) !== canonical(entry.after)) {
+		const view = (s: unknown) => (kind.comparable ? kind.comparable(s as { id: number }) : s);
+		if (!current || canonical(view(current)) !== canonical(view(entry.after))) {
 			const later = laterChangeEntry(db, entry.entityType, entry.entityId, entry.id);
 			return `${name} changed after this entry${later ? ` (change #${later.id}, ${later.action})` : ''}`;
 		}

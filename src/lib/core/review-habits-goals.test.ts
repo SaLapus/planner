@@ -87,6 +87,25 @@ describe('reviewData: habits', () => {
 	});
 });
 
+describe('reviewData: habits archived after the period', () => {
+	it('past-period data still includes a Habit that was archived later, but not one archived before it', () => {
+		const { planner, clock } = createTestPlanner({ now: '2025-12-01T09:00:00Z' });
+		const gym = planner.createHabit('owner', { title: 'Зал', schedule: { type: 'per_week', count: 1 } });
+		const early = planner.createHabit('owner', { title: 'Раньше', schedule: { type: 'per_week', count: 1 } });
+		clock.set('2025-12-20T09:00:00Z');
+		planner.archiveHabit('owner', early.id); // before the reviewed week
+		clock.set('2026-01-07T09:00:00Z');
+		checkins(planner, gym.id, ['2026-01-06']);
+		clock.set('2026-01-20T09:00:00Z');
+		planner.archiveHabit('owner', gym.id); // after the reviewed week
+
+		const habits = planner.reviewData({ period: 'week', date: '2026-01-07' }).habits;
+		expect(habits.map((h) => h.habit.title)).toEqual(['Зал']);
+		expect(habits[0].periods).toEqual([{ start: '2026-01-05', end: '2026-01-11', done: 1, target: 1, met: true }]);
+		expect(habits[0].streak).toBe(1);
+	});
+});
+
 describe('reviewData: goals', () => {
 	it('includes progress of active goals (as of now) with linked milestones, tasks and habits', () => {
 		const { planner } = createTestPlanner({ now: '2026-01-12T09:00:00Z' });

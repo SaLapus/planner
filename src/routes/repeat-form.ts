@@ -3,17 +3,7 @@
 // due date) and "after completion" (N days/weeks/... after I mark it done). Richer RRULEs (set by
 // Claude, e.g. "every Monday and Thursday") are shown as-is and left untouched by the form.
 import type { Repeat, RepeatUnit } from '#lib/core/tasks.js';
-
-const FREQ: Record<RepeatUnit, string> = {
-	day: 'DAILY',
-	week: 'WEEKLY',
-	month: 'MONTHLY',
-	year: 'YEARLY'
-};
-const UNIT_OF = Object.fromEntries(Object.entries(FREQ).map(([u, f]) => [f, u])) as Record<
-	string,
-	RepeatUnit
->;
+import { FREQ_OF_UNIT as FREQ, UNIT_OF_FREQ as UNIT_OF, plural, simpleRule } from './rrule-form.js';
 
 export interface RepeatFields {
 	/** 'none' | 'fixed' | 'after' | 'custom' (a fixed rule the form cannot show; submitting it changes nothing). */
@@ -26,9 +16,9 @@ export interface RepeatFields {
 export function repeatFields(repeat: Repeat | null): RepeatFields {
 	if (!repeat) return { kind: 'none', every: 1, unit: 'week' };
 	if (repeat.type === 'after') return { kind: 'after', every: repeat.every, unit: repeat.unit };
-	const m = /^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(?:;INTERVAL=(\d+))?$/.exec(repeat.rrule);
-	if (!m) return { kind: 'custom', every: 1, unit: 'week' };
-	return { kind: 'fixed', every: m[2] ? Number(m[2]) : 1, unit: UNIT_OF[m[1]] };
+	const simple = simpleRule(repeat.rrule);
+	if (!simple) return { kind: 'custom', every: 1, unit: 'week' };
+	return { kind: 'fixed', every: simple.interval, unit: UNIT_OF[simple.freq] as RepeatUnit };
 }
 
 /**
@@ -55,15 +45,7 @@ const WORDS: Record<RepeatUnit, [string, string, string]> = {
 	year: ['год', 'года', 'лет']
 };
 
-// Russian counting: 1 день, 2-4 дня, 5-20 дней, 21 день...
-function word(n: number, unit: RepeatUnit) {
-	const [one, few, many] = WORDS[unit];
-	const mod10 = n % 10;
-	const mod100 = n % 100;
-	if (mod10 === 1 && mod100 !== 11) return one;
-	if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
-	return many;
-}
+const word = (n: number, unit: RepeatUnit) => plural(n, WORDS[unit]);
 
 const SINGLE: Record<RepeatUnit, string> = {
 	day: 'каждый день',

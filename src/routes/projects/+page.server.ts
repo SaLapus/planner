@@ -2,11 +2,7 @@
 import { fail } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
-
-function actorOf(locals: App.Locals) {
-	if (!locals.actor) throw new Error('Not authenticated');
-	return locals.actor;
-}
+import { actorOf, errorText } from '#lib/server/request.js';
 
 export const load: PageServerLoad = () => ({
 	projects: getPlanner().listProjects({ includeArchived: true })
@@ -16,7 +12,7 @@ function run(fn: () => unknown) {
 	try {
 		fn();
 	} catch (e) {
-		return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+		return fail(400, { error: errorText(e) });
 	}
 }
 

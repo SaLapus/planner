@@ -155,6 +155,10 @@ const MIGRATIONS: string[] = [
 		secret TEXT NOT NULL
 	);
 	INSERT INTO feed_secret (id, secret) VALUES (1, lower(hex(randomblob(32))));
+	`,
+	// "This and following" split as ONE change-log entry: the head keeps a snapshot of the new series (review S1).
+	`
+	ALTER TABLE event ADD COLUMN split_tail TEXT;
 	`
 ];
 

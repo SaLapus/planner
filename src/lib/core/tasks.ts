@@ -75,6 +75,12 @@ export interface TaskFilter {
 	tag?: string;
 }
 
+/** What `searchTasks` can narrow by besides text: a Project, a Tag and a due-date range (inclusive local dates). */
+export interface TaskSearchFilter extends TaskFilter {
+	dueFrom?: string;
+	dueTo?: string;
+}
+
 export interface TaskApi {
 	createTask(
 		actor: Actor,
@@ -101,8 +107,8 @@ export interface TaskApi {
 	): Task;
 	getTask(id: number): Task;
 	/**
-	 * Completes a Task. A repeating Task also gets its next instance (linked as `nextId`, logged as a
-	 * separate `task.create` entry): due date from the rule (fixed: the first occurrence after both the
+	 * Completes a Task. A repeating Task also gets its next instance (linked as `nextId`; part of the one
+	 * `task.complete` entry, whose after-snapshot carries `nextId`): due date from the rule (fixed: the first occurrence after both the
 	 * due date and today) or from today (after-completion). Un-completing, or undoing the completion,
 	 * removes that next instance again, and refuses if it was already changed or completed.
 	 */
@@ -116,8 +122,12 @@ export interface TaskApi {
 	 * upcoming: due after today. inbox: no due date (ordered by priority, then creation).
 	 */
 	tasksIn(list: TaskList): Task[];
-	/** Case-insensitive title search over all Tasks (done ones included), oldest first. */
-	searchTasks(text: string): Task[];
+	/**
+	 * Case-insensitive title search over all Tasks (done ones included), oldest first, optionally narrowed by
+	 * Project, Tag and a due-date range (`dueFrom`/`dueTo`, inclusive "YYYY-MM-DD"; Tasks without a due date
+	 * never match a date bound). Empty text matches every title, but with no text and no filter nothing is returned.
+	 */
+	searchTasks(text: string, filter?: TaskSearchFilter): Task[];
 }
 
 interface TaskRow {
@@ -452,14 +462,12 @@ export function taskModule({
 			if (complete === (before.completedAt !== null)) {
 				throw new Error(`Task ${id} is already ${complete ? 'completed' : 'open'}`);
 			}
-			let spawned: Task | null = null;
 			let nextId: number | null = null;
 			if (complete) {
 				const done = { ...before, completedAt: nowIso() };
 				const next = nextInstanceOf(done);
 				if (next) {
-					spawned = insertNextInstance(done, next);
-					nextId = spawned.id;
+					nextId = insertNextInstance(done, next).id;
 				}
 			} else if (before.nextId !== null) {
 				dropNextInstance(before.nextId);
@@ -471,7 +479,6 @@ export function taskModule({
 			);
 			const after = getTask(id);
 			record(actor, complete ? 'task.complete' : 'task.uncomplete', 'task', id, before, after);
-			if (spawned) record(actor, 'task.create', 'task', spawned.id, null, spawned);
 			return after;
 		});
 	}
@@ -592,10 +599,24 @@ export function taskModule({
 				.filter(matches[list])
 				.sort(byDue);
 		},
-		searchTasks(text) {
+		searchTasks(text, filter = {}) {
 			const needle = text.trim().toLowerCase();
-			if (!needle) return [];
-			return allTasks().filter((t) => t.title.toLowerCase().includes(needle));
+			const checkDate = (d: string | undefined) => {
+				if (d !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+					throw new Error(`Invalid date "${d}" (expected YYYY-MM-DD)`);
+				}
+			};
+			checkDate(filter.dueFrom);
+			checkDate(filter.dueTo);
+			const { dueFrom, dueTo, ...rest } = filter;
+			const narrowed = Object.values(filter).some((v) => v !== undefined);
+			if (!needle && !narrowed) return [];
+			return this.listTasks(rest).filter(
+				(t) =>
+					t.title.toLowerCase().includes(needle) &&
+					(dueFrom === undefined || (t.dueDate !== null && t.dueDate >= dueFrom)) &&
+					(dueTo === undefined || (t.dueDate !== null && t.dueDate <= dueTo))
+			);
 		}
 	};
 }

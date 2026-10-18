@@ -3,6 +3,7 @@
 import { fail } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
+import { actorOf, errorText } from '#lib/server/request.js';
 
 export const load: PageServerLoad = ({ url }) => {
 	const param = url.searchParams.get('actor');
@@ -18,12 +19,11 @@ export const load: PageServerLoad = ({ url }) => {
 
 export const actions: Actions = {
 	undo: async ({ request, locals }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		const id = Number((await request.formData()).get('id'));
 		try {
-			getPlanner().undoChange(locals.actor, id);
+			getPlanner().undoChange(actorOf(locals), id);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 	}
 };

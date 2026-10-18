@@ -62,9 +62,8 @@ export interface OccurrenceOverride {
 }
 
 /**
- * One entry of the agenda. A typed list so that later tickets (Tasks, #9) can add more `kind`s
- * without changing the shape of the result. For a recurring Event each occurrence is one item:
- * `id` is the series, `recurrenceId` the occurrence, start/end the occurrence's own times.
+ * One entry of the agenda, a member of the typed `kind` union (Tasks are the other member, see agenda.ts).
+ * For a recurring Event each occurrence is one item: `id` is the series, `recurrenceId` the occurrence, start/end the occurrence's own times.
  */
 export type EventAgendaItem = Omit<Event, 'overrides'> & { kind: 'event'; recurrenceId: string | null };
 
@@ -100,6 +99,18 @@ export interface EventApi {
 	getEvent(id: number): Event;
 	/** One occurrence of a recurring Event as an agenda item. Throws if the rule does not produce it or it is cancelled. */
 	getOccurrence(id: number, recurrenceId: string): EventAgendaItem;
+	/**
+	 * One command for every kind of Event edit (what the MCP tool and the UI form need). With no `recurrenceId`
+	 * (scope "all", the default): `updateEvent`, the whole series. With a `recurrenceId` and scope "this" (the
+	 * default): `updateOccurrence`; only title, notes, location, start and end can change then. With scope
+	 * "following": `updateFollowing`, returning the NEW series. Inconsistent combinations throw.
+	 */
+	updateEventScoped(
+		actor: Actor,
+		id: number,
+		target: { recurrenceId?: string; scope?: 'this' | 'following' | 'all' },
+		patch: Partial<EventInput>
+	): Event;
 	/** Change one occurrence only. Moving it (start/end) is allowed; `end` defaults to keeping the duration. */
 	updateOccurrence(actor: Actor, id: number, recurrenceId: string, patch: OccurrencePatch): Event;
 	/** Skip one occurrence. Undo of the change brings it back. */
@@ -107,10 +118,15 @@ export interface EventApi {
 	/**
 	 * "This and following": the series is cut before `recurrenceId` and a NEW series (returned) starts
 	 * there with the patch applied. Overrides after the cut move to the new series unless the patch
-	 * changes timing or rule. Logs two entries: `event.split` (old series) and `event.create` (new).
+	 * changes timing or rule. Logs ONE entry, `event.split` on the old series, whose snapshots carry the new series (`splitTail`), so one undo removes the new series again.
 	 * At the first occurrence it is simply `updateEvent` and returns the same series.
 	 */
 	updateFollowing(actor: Actor, id: number, recurrenceId: string, patch: Partial<EventInput>): Event;
+	/**
+	 * Events whose title, notes or location contain `text` (case-insensitive). Without a range: each matching Event
+	 * once (a recurring one as its series, `recurrenceId` null). With `from` and `to` (both; same formats as `agenda`): the matching occurrences overlapping that range, recurring Events expanded. Needs text or a range.
+	 */
+	searchEvents(opts: { text?: string; from?: string; to?: string }): EventAgendaItem[];
 	/**
 	 * Everything overlapping [from, to), ordered by start, recurring Events expanded into their
 	 * occurrences. `from`/`to` are ISO strings: date-only
@@ -136,9 +152,17 @@ interface EventRow {
 	end_date: string | null;
 	recurrence: string | null;
 	overrides: string;
+	split_tail: string | null;
 	created_at: string;
 	updated_at: string;
 }
+
+/**
+ * What the Change log and Trash store for an Event: the Event plus, for the HEAD of a "this and
+ * following" split, the full snapshot of the new series (`splitTail`). That makes a split ONE entry
+ * (one undo removes the new series again, redo re-creates it with the same id).
+ */
+export type EventSnapshot = Event & { splitTail: Event | null };
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const HAS_OFFSET = /(Z|[+-]\d{2}(:?\d{2})?)$/i;
@@ -217,6 +241,13 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 		};
 	};
 
+	const snapshotOf = (r: EventRow): EventSnapshot => ({
+		...toEvent(r),
+		splitTail: r.split_tail === null ? null : (JSON.parse(r.split_tail) as Event)
+	});
+	/** The registry snapshot of an Event; what every command passes to `record`. */
+	const snap = (id: number) => snapshotOf(row(id));
+
 	function row(id: number): EventRow {
 		const r = db.prepare('SELECT * FROM event WHERE id = ?').get(id) as EventRow | undefined;
 		if (!r) throw new Error(`Event ${id} not found`);
@@ -278,18 +309,17 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 
 	// Makes Events trashable and undoable (see README "How to make a new entity trashable and undoable").
 	// The snapshot is the full Event (all columns incl. recurrence and overrides, plus derived views of them).
-	entities.register<Event>({
-		type: 'event',
-		read: (id) => {
-			const r = db.prepare('SELECT * FROM event WHERE id = ?').get(id) as EventRow | undefined;
-			return r ? toEvent(r) : null;
-		},
-		write: (e) => {
+	const eventExists = (id: number) => db.prepare('SELECT 1 FROM event WHERE id = ?').get(id) !== undefined;
+	const eventInTrash = (id: number) =>
+		db.prepare("SELECT 1 FROM trash WHERE entity_type = 'event' AND entity_id = ?").get(id) !== undefined;
+
+	function writeRow(e: Event, splitTail: Event | null) {
+		{
 			db.prepare(
 				`INSERT OR REPLACE INTO event
 				 (id, title, notes, location, all_day, time_zone, start_at, end_at, start_date, end_date,
-				  recurrence, overrides, created_at, updated_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				  recurrence, overrides, split_tail, created_at, updated_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				e.id,
 				e.title,
@@ -303,9 +333,45 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				e.allDay ? e.end : null,
 				e.recurrence,
 				JSON.stringify(e.overrides ?? {}),
+				splitTail === null ? null : JSON.stringify(splitTail),
 				e.createdAt,
 				e.updatedAt
 			);
+		}
+	}
+
+	/** Takes the new series of a split away again; refuses if it was touched since (any logged change). */
+	function dropSplitTail(id: number) {
+		if (!eventExists(id)) {
+			// Deleted by hand: make sure restoring it later cannot produce a duplicate.
+			db.prepare("DELETE FROM trash WHERE entity_type = 'event' AND entity_id = ?").run(id);
+			return;
+		}
+		const touched = db
+			.prepare("SELECT 1 FROM change_log WHERE entity_type = 'event' AND entity_id = ?")
+			.get(id);
+		if (touched) {
+			throw new Error(`the new series (event #${id}) was already changed; deal with it first`);
+		}
+		db.prepare('DELETE FROM event WHERE id = ?').run(id);
+	}
+
+	entities.register<EventSnapshot>({
+		type: 'event',
+		read: (id) => {
+			const r = db.prepare('SELECT * FROM event WHERE id = ?').get(id) as EventRow | undefined;
+			return r ? snapshotOf(r) : null;
+		},
+		write: (snapshot) => {
+			const { splitTail, ...e } = snapshot;
+			const previous = db.prepare('SELECT split_tail FROM event WHERE id = ?').get(e.id) as
+				| { split_tail: string | null }
+				| undefined;
+			const previousTailId = previous?.split_tail ? (JSON.parse(previous.split_tail) as Event).id : null;
+			writeRow(e, splitTail ?? null);
+			// The head of a split and its new series go together (like a repeating Task and its next instance).
+			if (previousTailId !== null && previousTailId !== (splitTail?.id ?? null)) dropSplitTail(previousTailId);
+			if (splitTail && !eventExists(splitTail.id) && !eventInTrash(splitTail.id)) writeRow(splitTail, null);
 		},
 		remove: (id) => void db.prepare('DELETE FROM event WHERE id = ?').run(id),
 		label: (e) => e.title
@@ -369,6 +435,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 			all_day: e.allDay ? 1 : 0,
 			recurrence: e.recurrence,
 			overrides: '{}',
+			split_tail: null,
 			created_at: e.createdAt,
 			updated_at: e.updatedAt,
 			title: o.title ?? e.title,
@@ -420,7 +487,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 
 	function updateWhole(actor: Actor, id: number, patch: Partial<EventInput>): Event {
 		return atomically(() => {
-			const before = toEvent(row(id));
+			const before = snap(id);
 			const allDay = patch.allDay ?? before.allDay;
 			const flipped = allDay !== before.allDay;
 			if (flipped && patch.start === undefined) {
@@ -454,18 +521,37 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				now: nowIso(),
 				id
 			});
-			const after = toEvent(row(id));
+			const after = snap(id);
 			record(actor, 'event.update', 'event', id, before, after);
 			return after;
 		});
 	}
 
 	return {
+		updateEventScoped(actor, id, { recurrenceId, scope }, patch) {
+			if (recurrenceId === undefined) {
+				if (scope === 'this' || scope === 'following') {
+					throw new Error(`scope "${scope}" needs a recurrenceId (from get_agenda)`);
+				}
+				return this.updateEvent(actor, id, patch);
+			}
+			if (scope === 'all') {
+				throw new Error('scope "all" changes the whole series: leave recurrenceId out');
+			}
+			if (scope === 'following') return this.updateFollowing(actor, id, recurrenceId, patch);
+			const unsupported = (['allDay', 'timeZone', 'recurrence'] as const).filter((k) => patch[k] !== undefined);
+			if (unsupported.length) {
+				throw new Error(
+					`Cannot change ${unsupported.join(', ')} of a single occurrence; use scope "following" or "all"`
+				);
+			}
+			return this.updateOccurrence(actor, id, recurrenceId, patch);
+		},
 		createEvent(actor, input) {
 			const cols = columns(input);
 			return atomically(() => {
 				const event = insertEvent(cols, {});
-				record(actor, 'event.create', 'event', event.id, null, event);
+				record(actor, 'event.create', 'event', event.id, null, snap(event.id));
 				return event;
 			});
 		},
@@ -479,7 +565,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 		},
 		updateOccurrence(actor, id, recurrenceId, patch) {
 			return atomically(() => {
-				const before = toEvent(row(id));
+				const before = snap(id);
 				const rid = checkOccurrence(before, recurrenceId);
 				if (before.overrides[rid]?.cancelled) {
 					throw new Error(`Occurrence ${rid} of Event ${id} is cancelled`);
@@ -500,18 +586,18 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 					next.end = (base.allDay ? cols.end_date : cols.end_at)!;
 				}
 				writeOverrides(id, { ...before.overrides, [rid]: next });
-				const after = toEvent(row(id));
+				const after = snap(id);
 				record(actor, 'event.occurrence.update', 'event', id, before, after);
 				return after;
 			});
 		},
 		cancelOccurrence(actor, id, recurrenceId) {
 			return atomically(() => {
-				const before = toEvent(row(id));
+				const before = snap(id);
 				const rid = checkOccurrence(before, recurrenceId);
 				if (before.overrides[rid]?.cancelled) return before;
 				writeOverrides(id, { ...before.overrides, [rid]: { cancelled: true } });
-				const after = toEvent(row(id));
+				const after = snap(id);
 				record(actor, 'event.occurrence.cancel', 'event', id, before, after);
 				return after;
 			});
@@ -523,7 +609,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				return updateWhole(actor, id, patch);
 			}
 			return atomically(() => {
-				const before = toEvent(row(id));
+				const before = snap(id);
 				const rid = firstRid;
 				if (before.overrides[rid]?.cancelled) {
 					throw new Error(`Occurrence ${rid} of Event ${id} is cancelled`);
@@ -566,15 +652,30 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 					nowIso(),
 					id
 				);
-				const head = toEvent(row(id));
-				record(actor, 'event.split', 'event', id, before, head);
-
 				const tail = insertEvent(cols, retimed ? {} : keep((k) => k > rid));
-				record(actor, 'event.create', 'event', tail.id, null, tail);
+				db.prepare('UPDATE event SET split_tail = ? WHERE id = ?').run(JSON.stringify(tail), id);
+				record(actor, 'event.split', 'event', id, before, snap(id));
 				return tail;
 			});
 		},
-		agenda(from, to) {
+		agenda,
+		searchEvents({ text = '', from, to }) {
+			const needle = text.trim().toLowerCase();
+			if (!needle && from === undefined && to === undefined) return [];
+			const matches = (e: Pick<Event, 'title' | 'notes' | 'location'>) =>
+				!needle || [e.title, e.notes, e.location].some((f) => f.toLowerCase().includes(needle));
+			if (from === undefined && to === undefined) {
+				const rows = db.prepare('SELECT * FROM event ORDER BY start_at, start_date, id').all() as unknown as EventRow[];
+				return rows.map(toEvent).filter(matches).map((e) => item(e, null));
+			}
+			if (from === undefined || to === undefined) throw new Error('Give both from and to for a date range');
+			return agenda(from, to).filter(matches);
+		},
+		today: () =>
+			clock.now().toTemporalInstant().toZonedDateTimeISO(homeTimeZone).toPlainDate().toString()
+	};
+	function agenda(from: string, to: string): EventAgendaItem[] {
+		{
 			const lo = DATE_ONLY.test(from)
 				? dayStart(parseDate(from), homeTimeZone)
 				: parseInstant(from, homeTimeZone).epochMilliseconds;
@@ -592,8 +693,6 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				.filter(({ span: [s, en] }) => s < hi && (en > lo || (en === s && s >= lo)))
 				.sort((a, b) => a.span[0] - b.span[0] || a.e.id - b.e.id)
 				.map(({ e }) => e);
-		},
-		today: () =>
-			clock.now().toTemporalInstant().toZonedDateTimeISO(homeTimeZone).toPlainDate().toString()
-	};
+		}
+	}
 }

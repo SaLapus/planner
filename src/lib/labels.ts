@@ -35,16 +35,22 @@ const VERBS: Record<string, string> = {
 	reorder_milestones: 'порядок этапов',
 	set_milestone: 'связь с этапом цели',
 	set_goal: 'связь с целью',
-	regenerate: 'новая секретная ссылка'
+	regenerate: 'новая секретная ссылка',
+	split: 'разделение серии',
+	'occurrence.update': 'изменение одного повтора',
+	'occurrence.cancel': 'отмена одного повтора'
 };
 
 export const entityName = (type: string) => ENTITY_NAMES[type] ?? type;
 
 /** 'task.complete.undo' -> 'Задача: отмена (выполнение)'. */
 export function actionName(action: string): string {
-	const [type, verb, undo] = action.split('.');
+	const parts = action.split('.');
+	const undo = parts.at(-1) === 'undo';
+	const type = parts[0];
+	const verb = parts.slice(1, undo ? -1 : undefined).join('.');
 	const what = VERBS[verb] ?? verb;
-	return undo === 'undo' ? `${entityName(type)}: отмена (${what})` : `${entityName(type)}: ${what}`;
+	return undo ? `${entityName(type)}: отмена (${what})` : `${entityName(type)}: ${what}`;
 }
 
 export const ACTOR_NAMES = { owner: 'Я', claude: 'Claude' } as const;

@@ -10,9 +10,12 @@
  * Habits and Check-ins are registered with the generic Trash/undo (see `ctx.entities`): delete with
  * `planner.deleteItem(actor, 'habit' | 'checkin', id)`, restore with `restoreItem`, revert with `undoChange`.
  * A Habit's snapshot (what Trash and the change log store) includes its Check-ins, so deleting and
- * restoring a Habit keeps its history.
+ * restoring a Habit keeps its history. Check-ins are still separate entities: they are NOT part of
+ * what undo compares or rewrites, so a later Check-in neither blocks undoing a Habit edit nor gets
+ * wiped by it.
  */
 import type { Actor, CoreContext } from './context.js';
+import type { SafetyApi } from './safety.js';
 
 export type HabitSchedule =
 	| { type: 'per_week'; count: number }
@@ -72,6 +75,11 @@ export interface HabitApi {
 
 	/** `date` is a local date, or an instant (ISO with Z/offset) converted to the Home zone; default: today. */
 	addCheckin(actor: Actor, habitId: number, input: { date?: string }): Checkin;
+	/**
+	 * Removes the Check-in of a Habit on a local date (default today) by moving it to Trash (the generic
+	 * delete, so it can be restored or undone). Returns it; throws if there is none.
+	 */
+	removeCheckin(actor: Actor, habitId: number, date?: string): Checkin;
 	/** The active Check-in of a Habit on a local date (default today), or null. Delete it with `deleteItem(actor, 'checkin', id)`. */
 	checkinOn(habitId: number, date?: string): Checkin | null;
 	/** Local dates (sorted) with a Check-in for the Habit, between `from` and `to` inclusive. */
@@ -163,7 +171,18 @@ function parseDate(s: string): Temporal.PlainDate {
 	}
 }
 
-export function habitModule(ctx: CoreContext): HabitApi {
+/** The local (Home zone) calendar date a Habit was created on. */
+export const habitCreatedOn = (habit: Habit, homeTimeZone: string): string =>
+	Temporal.Instant.from(habit.createdAt).toZonedDateTimeISO(homeTimeZone).toPlainDate().toString();
+
+/**
+ * Whether a Period (ending on local date `periodEnd`) is one the Habit already existed in. Periods
+ * that ended before the Habit was created are not judged (shared by Reviews and Stats).
+ */
+export const habitExistedBy = (habit: Habit, periodEnd: string, homeTimeZone: string): boolean =>
+	periodEnd >= habitCreatedOn(habit, homeTimeZone);
+
+export function habitModule(ctx: CoreContext, safety: Pick<SafetyApi, 'deleteItem'>): HabitApi {
 	const { db, nowIso, atomically, record, entities, homeTimeZone } = ctx;
 
 	const today = () => Temporal.Instant.from(nowIso()).toZonedDateTimeISO(homeTimeZone).toPlainDate();
@@ -233,10 +252,14 @@ export function habitModule(ctx: CoreContext): HabitApi {
 	entities.register<HabitSnapshot>({
 		type: 'habit',
 		read: readHabit,
+		comparable: ({ checkins: _c, ...habit }) => habit,
 		write: (h) => {
+			const exists = db.prepare('SELECT 1 FROM habit WHERE id = ?').get(h.id) !== undefined;
 			db.prepare(
 				'INSERT OR REPLACE INTO habit (id, title, schedule, archived_at, created_at, goal_id) VALUES (?, ?, ?, ?, ?, ?)'
 			).run(h.id, h.title, JSON.stringify(h.schedule), h.archivedAt, h.createdAt, h.goalId);
+			// An existing Habit keeps the Check-ins it has now; only a Habit coming back from Trash brings its history.
+			if (exists) return;
 			db.prepare('DELETE FROM habit_checkin WHERE habit_id = ?').run(h.id);
 			for (const c of h.checkins) {
 				db.prepare('INSERT INTO habit_checkin (id, habit_id, date, created_at) VALUES (?, ?, ?, ?)').run(
@@ -330,6 +353,13 @@ export function habitModule(ctx: CoreContext): HabitApi {
 		};
 	}
 
+	function checkinOn(habitId: number, date?: string): Checkin | null {
+		const row = db
+			.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? AND date = ?')
+			.get(habitId, localDate(date).toString()) as CheckinRow | undefined;
+		return row ? toCheckin(row) : null;
+	}
+
 	return {
 		createHabit(actor, input) {
 			const title = cleanTitle(input.title);
@@ -383,11 +413,12 @@ export function habitModule(ctx: CoreContext): HabitApi {
 				return checkin;
 			});
 		},
-		checkinOn(habitId, date) {
-			const row = db
-				.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? AND date = ?')
-				.get(habitId, localDate(date).toString()) as CheckinRow | undefined;
-			return row ? toCheckin(row) : null;
+		checkinOn,
+		removeCheckin(actor, habitId, date) {
+			const checkin = checkinOn(habitId, date);
+			if (!checkin) throw new Error(`Habit ${habitId} has no check-in on ${date ?? 'today'}`);
+			safety.deleteItem(actor, 'checkin', checkin.id);
+			return checkin;
 		},
 
 		listCheckinDates(habitId, { from, to }) {

@@ -222,3 +222,27 @@ describe('today', () => {
 		expect(planner.today()).toBe('2026-01-10');
 	});
 });
+
+describe('Events: search', () => {
+	const setup = () => {
+		const t = createTestPlanner();
+		t.planner.createEvent('owner', { title: 'Врач', start: '2026-03-10T10:00', location: 'Клиника' });
+		t.planner.createEvent('owner', { title: 'Обед', start: '2026-03-20T13:00', notes: 'с врачом из клиники' });
+		t.planner.createEvent('owner', { title: 'Зарядка', start: '2026-03-01T08:00', recurrence: 'FREQ=WEEKLY' });
+		return t;
+	};
+
+	it('finds Events by text in title, notes and location, case-insensitively', () => {
+		const { planner } = setup();
+		expect(planner.searchEvents({ text: 'ВРАЧ' }).map((e) => e.title)).toEqual(['Врач', 'Обед']);
+		expect(planner.searchEvents({ text: 'клиник' }).map((e) => e.title)).toEqual(['Врач', 'Обед']);
+		expect(planner.searchEvents({ text: '   ' })).toEqual([]);
+	});
+
+	it('limits to a date range and expands recurring Events into occurrences', () => {
+		const { planner } = setup();
+		const found = planner.searchEvents({ text: 'зарядка', from: '2026-03-09', to: '2026-03-22' });
+		expect(found.map((e) => e.startLocal)).toEqual(['2026-03-15T08:00', '2026-03-22T08:00']);
+		expect(planner.searchEvents({ from: '2026-03-09', to: '2026-03-12' }).map((e) => e.title)).toEqual(['Врач']);
+	});
+});

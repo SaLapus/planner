@@ -85,12 +85,7 @@ export const registerHabitTools: RegisterTools = (server, { planner, actor }) =>
 				'Remove the Check-in of a Habit on a date (it goes to the Trash; bring it back with restore_item type "checkin", or revert with undo_change). To delete a whole Habit use delete_item with type "habit".',
 			inputSchema: z.object({ habitId: z.number().int(), date: dateArg('Date of the Check-in to remove') })
 		},
-		reply(({ habitId, date }) => {
-			const checkin = planner.checkinOn(habitId, date);
-			if (!checkin) throw new Error(`Habit ${habitId} has no check-in on ${date ?? 'today'}`);
-			planner.deleteItem(actor, 'checkin', checkin.id);
-			return checkin;
-		})
+		reply(({ habitId, date }) => planner.removeCheckin(actor, habitId, date))
 	);
 
 	server.registerTool(

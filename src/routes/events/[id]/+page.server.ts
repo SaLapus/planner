@@ -3,6 +3,7 @@ import { getPlanner } from '#lib/server/planner.js';
 import { timeZoneChoices } from '../form.js';
 import { saveEvent } from '../save.js';
 import type { Actions, PageServerLoad } from './$types';
+import { actorOf, errorText } from '#lib/server/request.js';
 
 function idOf(raw: string): number {
 	const id = Number(raw);
@@ -26,39 +27,36 @@ export const load: PageServerLoad = ({ params, url }) => {
 
 export const actions: Actions = {
 	save: async ({ request, locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		let day: string;
 		try {
-			day = saveEvent(getPlanner(), locals.actor, idOf(params.id), await request.formData()).startHome.slice(0, 10);
+			day = saveEvent(getPlanner(), actorOf(locals), idOf(params.id), await request.formData()).startHome.slice(0, 10);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 		redirect(303, `/events/day/${day}`);
 	},
 	cancelOccurrence: async ({ request, locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		const occ = String((await request.formData()).get('occ') ?? '');
 		let day: string;
 		try {
 			const planner = getPlanner();
 			const id = idOf(params.id);
 			day = planner.getOccurrence(id, occ).startHome.slice(0, 10);
-			planner.cancelOccurrence(locals.actor, id, occ);
+			planner.cancelOccurrence(actorOf(locals), id, occ);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 		redirect(303, `/events/day/${day}`);
 	},
 	delete: async ({ locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		let day: string;
 		try {
 			const planner = getPlanner();
 			const id = idOf(params.id);
 			day = planner.getEvent(id).startHome.slice(0, 10);
-			planner.deleteItem(locals.actor, 'event', id);
+			planner.deleteItem(actorOf(locals), 'event', id);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 		redirect(303, `/events/day/${day}`);
 	}

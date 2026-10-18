@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
-import { errorText, scheduleFromForm } from '../schedule.js';
+import { scheduleFromForm } from '../schedule.js';
 import type { Actions, PageServerLoad } from './$types';
+import { actorOf, errorText } from '#lib/server/request.js';
 
 export const load: PageServerLoad = ({ params }) => {
 	const habit = getPlanner()
@@ -13,10 +14,9 @@ export const load: PageServerLoad = ({ params }) => {
 
 export const actions: Actions = {
 	save: async ({ request, locals, params }) => {
-		if (!locals.actor) throw new Error('Not authenticated');
 		const form = await request.formData();
 		try {
-			getPlanner().updateHabit(locals.actor, Number(params.id), {
+			getPlanner().updateHabit(actorOf(locals), Number(params.id), {
 				title: String(form.get('title') ?? ''),
 				schedule: scheduleFromForm(form)
 			});

@@ -8,4 +8,3 @@ export function scheduleFromForm(form: FormData): HabitSchedule {
 	throw new Error('Выберите расписание');
 }
 
-export const errorText = (e: unknown) => (e instanceof Error ? e.message : 'Ошибка');

@@ -5,12 +5,7 @@ import { fail } from '@sveltejs/kit';
 import { getPlanner, HOME_TIME_ZONE } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
 import { repeatFields, repeatLabel, repeatOf } from './repeat-form.js';
-
-// Every UI request has passed the login check in hooks.server.ts, which sets locals.actor to 'owner'.
-function actorOf(locals: App.Locals) {
-	if (!locals.actor) throw new Error('Not authenticated');
-	return locals.actor;
-}
+import { actorOf, errorText } from '#lib/server/request.js';
 
 const LISTS = ['today', 'upcoming', 'overdue', 'inbox'] as const;
 const PRIORITIES = ['none', 'low', 'medium', 'high'] as const;
@@ -53,8 +48,6 @@ function priorityOf(form: FormData) {
 		? (p as (typeof PRIORITIES)[number])
 		: 'none';
 }
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : 'Ошибка');
 
 // `?list=today` picks a smart list, `?q=молоко` searches, `?project=3|none` and `?tag=дом` narrow
 // further; filters combine. No parameters shows everything.
@@ -102,7 +95,7 @@ function run(fn: () => unknown) {
 	try {
 		fn();
 	} catch (e) {
-		return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+		return fail(400, { error: errorText(e) });
 	}
 }
 
@@ -204,7 +197,7 @@ export const actions: Actions = {
 		try {
 			getPlanner().deleteItem(actorOf(locals), 'task', id);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+			return fail(400, { error: errorText(e) });
 		}
 	},
 	toggle: async ({ request, locals }) => {

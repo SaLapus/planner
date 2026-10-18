@@ -57,27 +57,9 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 					.describe(`${RECURRENCE_HELP} null makes a recurring Event one-off.`)
 			})
 		},
-		reply(({ id, recurrenceId, scope, ...patch }) => {
-			if (recurrenceId === undefined) {
-				if (scope === 'this' || scope === 'following') {
-					throw new Error(`scope "${scope}" needs a recurrenceId (from get_agenda)`);
-				}
-				return planner.updateEvent(actor, id, patch);
-			}
-			if (scope === 'all') {
-				throw new Error('scope "all" changes the whole series: leave recurrenceId out');
-			}
-			if (scope === 'following') return planner.updateFollowing(actor, id, recurrenceId, patch);
-			const unsupported = (['allDay', 'timeZone', 'recurrence'] as const).filter(
-				(k) => patch[k] !== undefined
-			);
-			if (unsupported.length) {
-				throw new Error(
-					`Cannot change ${unsupported.join(', ')} of a single occurrence; use scope "following" or "all"`
-				);
-			}
-			return planner.updateOccurrence(actor, id, recurrenceId, patch);
-		})
+		reply(({ id, recurrenceId, scope, ...patch }) =>
+			planner.updateEventScoped(actor, id, { recurrenceId, scope }, patch)
+		)
 	);
 
 	server.registerTool(
@@ -91,6 +73,20 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 			})
 		},
 		reply(({ id, recurrenceId }) => planner.cancelOccurrence(actor, id, recurrenceId))
+	);
+
+	server.registerTool(
+		'search_events',
+		{
+			description:
+				'Find calendar Events by text (title, notes or location, case-insensitive) and/or a date range. Without from/to each matching Event is returned once (a recurring one as its series, recurrenceId null). With from AND to (same formats as get_agenda: dates are Home-zone days, to inclusive) the matching occurrences inside the range are returned, recurring Events expanded, as get_agenda items. Needs text or a range.',
+			inputSchema: z.object({
+				text: z.string().optional(),
+				from: z.string().optional().describe('Range start: date or datetime (give together with to)'),
+				to: z.string().optional().describe('Range end: date (inclusive) or datetime (exclusive)')
+			})
+		},
+		reply((input) => planner.searchEvents(input))
 	);
 
 	server.registerTool(
