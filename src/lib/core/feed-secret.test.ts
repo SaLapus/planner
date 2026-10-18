@@ -31,7 +31,7 @@ describe('calendar feed secret', () => {
 
 		const entries = planner.changeLog();
 		expect(entries).toHaveLength(1);
-		expect(entries[0]).toMatchObject({ actor: 'owner', action: 'regenerate', entityType: 'feed' });
+		expect(entries[0]).toMatchObject({ actor: 'owner', action: 'feed.regenerate', entityType: 'feed' });
 		expect(JSON.stringify(entries)).not.toContain(old);
 		expect(JSON.stringify(entries)).not.toContain(fresh);
 	});

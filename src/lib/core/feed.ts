@@ -118,7 +118,7 @@ export function feedModule(
 				const secret = randomBytes(32).toString('hex');
 				db.prepare('UPDATE feed_secret SET secret = ? WHERE id = 1').run(secret);
 				// The secret is deliberately NOT written to the Change log (it is shown in the UI).
-				record(actor, 'regenerate', 'feed', 1, null, null);
+				record(actor, 'feed.regenerate', 'feed', 1, null, null);
 				return secret;
 			});
 		},
