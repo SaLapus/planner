@@ -20,7 +20,7 @@ import { eventModule, type EventApi } from './events.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Event, EventInput, AgendaItem } from './events.js';
-export type { Task } from './tasks.js';
+export type { Task, Priority, TaskList } from './tasks.js';
 export type { ChangeLogEntry } from './changelog.js';
 
 export interface Planner extends TaskApi, EventApi, ChangeLogQueries {}

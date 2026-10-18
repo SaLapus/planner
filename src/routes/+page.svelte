@@ -10,6 +10,21 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// Plain constants: they never change, so they don't need to be reactive.
+	const lists = [
+		['today', 'Сегодня'],
+		['upcoming', 'Предстоящие'],
+		['overdue', 'Просроченные'],
+		['inbox', 'Входящие']
+	];
+	const priorities = [
+		['none', 'Без приоритета'],
+		['low', 'Низкий'],
+		['medium', 'Средний'],
+		['high', 'Высокий']
+	];
+	const priorityLabel = Object.fromEntries(priorities);
 </script>
 
 <svelte:head>
@@ -21,7 +36,20 @@
 	<a href="/events">Расписание</a>
 	<h1>Задачи</h1>
 
-	<form method="POST" action="?/add" use:enhance>
+	<!-- A plain GET form: submitting it just reloads the page with ?q=..., and `load` does the search. -->
+	<form method="GET" class="search">
+		<input name="q" value={data.q} placeholder="Поиск…" aria-label="Поиск задач" />
+		<button>Найти</button>
+	</form>
+
+	<nav>
+		<a href="/" class:active={!data.list && !data.q}>Все</a>
+		{#each lists as [key, label] (key)}
+			<a href="/?list={key}" class:active={data.list === key && !data.q}>{label}</a>
+		{/each}
+	</nav>
+
+	<form method="POST" action="?/add" use:enhance class="add">
 		<input
 			name="title"
 			placeholder="Новая задача…"
@@ -29,6 +57,13 @@
 			value={form?.title ?? ''}
 			aria-label="Название задачи"
 		/>
+		<input type="date" name="dueDate" aria-label="Срок: дата" />
+		<input type="time" name="dueTime" aria-label="Срок: время" />
+		<select name="priority" aria-label="Приоритет">
+			{#each priorities as [key, label] (key)}
+				<option value={key}>{label}</option>
+			{/each}
+		</select>
 		<button>Добавить</button>
 	</form>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
@@ -49,7 +84,29 @@
 							{task.completedAt === null ? '○' : '✓'}
 						</button>
 					</form>
-					<span>{task.title}</span>
+					<span class="title">{task.title}</span>
+					{#if task.dueDate}
+						<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
+					{/if}
+					{#if task.priority !== 'none'}
+						<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
+					{/if}
+					<!-- <details> is built-in HTML: click the summary to show or hide the form inside. -->
+					<details>
+						<summary aria-label="Изменить">✎</summary>
+						<form method="POST" action="?/edit" use:enhance class="edit">
+							<input type="hidden" name="id" value={task.id} />
+							<input name="title" value={task.title} aria-label="Название" />
+							<input type="date" name="dueDate" value={task.dueDate ?? ''} aria-label="Срок: дата" />
+							<input type="time" name="dueTime" value={task.dueTime ?? ''} aria-label="Срок: время" />
+							<select name="priority" value={task.priority} aria-label="Приоритет">
+								{#each priorities as [key, label] (key)}
+									<option value={key}>{label}</option>
+								{/each}
+							</select>
+							<button>Сохранить</button>
+						</form>
+					</details>
 				</li>
 			{/each}
 		</ul>
@@ -66,13 +123,57 @@
 		padding: 0 1rem;
 		font-family: system-ui, sans-serif;
 	}
-	form:first-of-type {
+	.search,
+	.add,
+	.edit {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 0.5rem;
+		margin-bottom: 0.5rem;
 	}
-	form:first-of-type input {
+	.search input,
+	.add input[name='title'],
+	.edit input[name='title'] {
 		flex: 1;
+		min-width: 8rem;
+	}
+	.search input,
+	.add input,
+	.edit input,
+	select {
 		padding: 0.5rem;
+	}
+	nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin: 0.5rem 0 1rem;
+	}
+	nav a.active {
+		font-weight: bold;
+	}
+	.title {
+		flex: 1;
+	}
+	.due {
+		color: #555;
+	}
+	.prio {
+		padding: 0 0.4rem;
+		border-radius: 0.5rem;
+		background: #eee;
+	}
+	.prio.high {
+		background: #f8c9c9;
+	}
+	.prio.medium {
+		background: #fde7b0;
+	}
+	li {
+		flex-wrap: wrap;
+	}
+	details {
+		width: 100%;
 	}
 	ul {
 		list-style: none;
