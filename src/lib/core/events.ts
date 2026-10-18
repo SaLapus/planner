@@ -62,8 +62,8 @@ export interface OccurrenceOverride {
 }
 
 /**
- * One entry of the agenda. The agenda is a typed list (`kind`), so more sources can join without changing its shape. For a recurring Event each occurrence is one item:
- * `id` is the series, `recurrenceId` the occurrence, start/end the occurrence's own times.
+ * One entry of the agenda, a member of the typed `kind` union (Tasks are the other member, see agenda.ts).
+ * For a recurring Event each occurrence is one item: `id` is the series, `recurrenceId` the occurrence, start/end the occurrence's own times.
  */
 export type EventAgendaItem = Omit<Event, 'overrides'> & { kind: 'event'; recurrenceId: string | null };
 

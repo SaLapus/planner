@@ -125,6 +125,8 @@ export function feedModule(
 		calendarFeed() {
 			const cal = ical({
 				prodId: { company: 'selfserver', product: 'planner', language: 'RU' },
+				// Intentional exception to "no Russian in core": the feed is the owner's own calendar content
+				// (see README, Calendar feed), not UI chrome, so its fixed texts are Russian.
 				name: 'Планировщик'
 			});
 			// name: null keeps DTSTAMP in UTC ("...Z") while still adding a VTIMEZONE per used zone.
