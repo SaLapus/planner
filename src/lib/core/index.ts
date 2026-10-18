@@ -24,6 +24,7 @@ import { eventModule, type EventApi } from './events.js';
 import { goalModule, type GoalApi } from './goals.js';
 import { agendaModule, type AgendaApi } from './agenda.js';
 import { statsModule, type StatsApi } from './stats.js';
+import { feedModule, type FeedApi } from './feed.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList, TimeBlock, TimeBlockInput } from './tasks.js';
@@ -44,6 +45,7 @@ export interface Planner
 		HabitApi,
 		GoalApi,
 		StatsApi,
+		FeedApi,
 		ChangeLogQueries,
 		SafetyApi {}
 
@@ -63,6 +65,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...goals,
 		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
+		...feedModule(ctx, events),
 		...safetyModule(ctx)
 	};
 }
