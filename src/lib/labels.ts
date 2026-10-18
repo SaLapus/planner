@@ -8,6 +8,7 @@ export const ENTITY_NAMES: Record<string, string> = {
 	event: 'Событие',
 	goal: 'Цель',
 	milestone: 'Этап цели',
+	review: 'Обзор',
 	feed: 'Календарная лента'
 };
 

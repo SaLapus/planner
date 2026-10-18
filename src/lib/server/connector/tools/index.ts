@@ -10,6 +10,7 @@ import { registerSafetyTools } from './safety.js';
 import { registerHabitTools } from './habits.js';
 import { registerEventTools } from './events.js';
 import { registerGoalTools } from './goals.js';
+import { registerReviewTools } from './reviews.js';
 import { registerStatsTools } from './stats.js';
 
 export const toolModules: RegisterTools[] = [
@@ -19,5 +20,6 @@ export const toolModules: RegisterTools[] = [
 	registerEventTools,
 	registerHabitTools,
 	registerGoalTools,
+	registerReviewTools,
 	registerStatsTools
 ];
