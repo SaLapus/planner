@@ -25,6 +25,21 @@
 		['high', 'Высокий']
 	];
 	const priorityLabel = Object.fromEntries(priorities);
+
+	// Builds a link that changes one filter and keeps the others (q is not kept: it is a form).
+	// Passing the value that is already active clears that filter.
+	function href(change: { list?: string | null; project?: string; tag?: string }) {
+		const next = { list: data.list as string | null, project: data.filter.project, tag: data.filter.tag };
+		if ('list' in change) next.list = change.list ?? null;
+		if (change.project !== undefined) next.project = next.project === change.project ? null : change.project;
+		if (change.tag !== undefined) next.tag = next.tag === change.tag ? null : change.tag;
+		const params = new URLSearchParams();
+		if (next.list) params.set('list', next.list);
+		if (next.project !== null) params.set('project', next.project);
+		if (next.tag) params.set('tag', next.tag);
+		const qs = params.toString();
+		return qs ? `/?${qs}` : '/';
+	}
 </script>
 
 <svelte:head>
@@ -35,17 +50,35 @@
 	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
 	<h1>Задачи</h1>
 
-	<!-- A plain GET form: submitting it just reloads the page with ?q=..., and `load` does the search. -->
+	<!-- A plain GET form: submitting it reloads the page with ?q=..., and `load` does the search. -->
 	<form method="GET" class="search">
+		{#if data.list}<input type="hidden" name="list" value={data.list} />{/if}
+		{#if data.filter.project !== null}<input type="hidden" name="project" value={data.filter.project} />{/if}
+		{#if data.filter.tag}<input type="hidden" name="tag" value={data.filter.tag} />{/if}
 		<input name="q" value={data.q} placeholder="Поиск…" aria-label="Поиск задач" />
 		<button>Найти</button>
 	</form>
 
-	<nav>
-		<a href="/" class:active={!data.list && !data.q}>Все</a>
+	<!-- List tabs: each link is just an address; the filters below are kept when switching. -->
+	<nav aria-label="Списки">
+		<a href={href({ list: null })} class:active={!data.list}>Все</a>
 		{#each lists as [key, label] (key)}
-			<a href="/?list={key}" class:active={data.list === key && !data.q}>{label}</a>
+			<a href={href({ list: key })} class:active={data.list === key}>{label}</a>
 		{/each}
+	</nav>
+
+	<!-- Filter chips: by project and by tag. Clicking the active chip again clears it. -->
+	<nav aria-label="Фильтры">
+		<a href={href({ project: 'none' })} class:active={data.filter.project === 'none'}>Без проекта</a>
+		{#each data.projects as p (p.id)}
+			<a href={href({ project: String(p.id) })} class:active={data.filter.project === String(p.id)}>{p.name}</a>
+		{/each}
+		{#each data.tags as t (t.tag)}
+			<a href={href({ tag: t.tag })} class:active={data.filter.tag === t.tag}>
+				#{t.tag} <small>{t.count}</small>
+			</a>
+		{/each}
+		<a href="/projects" class="manage">Проекты…</a>
 	</nav>
 
 	<form method="POST" action="?/add" use:enhance class="add">
@@ -73,26 +106,41 @@
 		<ul>
 			{#each data.tasks as task (task.id)}
 				<li class:done={task.completedAt !== null}>
-					<form method="POST" action="?/toggle" use:enhance>
-						<input type="hidden" name="id" value={task.id} />
-						<input type="hidden" name="done" value={task.completedAt === null} />
-						<button
-							class="check"
-							aria-label={task.completedAt === null ? 'Выполнить' : 'Вернуть в работу'}
-						>
-							{task.completedAt === null ? '○' : '✓'}
-						</button>
-					</form>
-					<span class="title">{task.title}</span>
-					{#if task.dueDate}
-						<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
-					{/if}
-					{#if task.priority !== 'none'}
-						<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
-					{/if}
-					<!-- <details> is built-in HTML: click the summary to show or hide the form inside. -->
+					<div class="row">
+						<form method="POST" action="?/toggle" use:enhance>
+							<input type="hidden" name="id" value={task.id} />
+							<input type="hidden" name="done" value={task.completedAt === null} />
+							<button
+								class="check"
+								aria-label={task.completedAt === null ? 'Выполнить' : 'Вернуть в работу'}
+							>
+								{task.completedAt === null ? '○' : '✓'}
+							</button>
+						</form>
+						<span class="title">{task.title}</span>
+						{#if task.dueDate}
+							<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
+						{/if}
+						{#if task.priority !== 'none'}
+							<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
+						{/if}
+						{#if task.projectId !== null}
+							<a class="badge" href="/?project={task.projectId}">
+								{data.allProjects.find((p) => p.id === task.projectId)?.name}
+							</a>
+						{/if}
+						{#each task.tags as tag (tag)}
+							<a class="badge tag" href="/?tag={encodeURIComponent(tag)}">#{tag}</a>
+						{/each}
+						{#if task.subtasks.length > 0}
+							<small>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</small>
+						{/if}
+					</div>
+
+					<!-- <details> is built-in HTML: click the summary to show or hide the content inside. -->
 					<details>
-						<summary aria-label="Изменить">✎</summary>
+						<summary aria-label="Подробнее">✎ Подробнее</summary>
+
 						<form method="POST" action="?/edit" use:enhance class="edit">
 							<input type="hidden" name="id" value={task.id} />
 							<input name="title" value={task.title} aria-label="Название" />
@@ -105,6 +153,62 @@
 							</select>
 							<button>Сохранить</button>
 						</form>
+
+						<ul class="subtasks">
+							{#each task.subtasks as sub, i (sub.id)}
+								<li class:done={sub.done}>
+									<form method="POST" action="?/toggleSubtask" use:enhance>
+										<input type="hidden" name="id" value={task.id} />
+										<input type="hidden" name="subtaskId" value={sub.id} />
+										<input type="hidden" name="done" value={!sub.done} />
+										<button class="check" aria-label={sub.done ? 'Снять отметку' : 'Отметить'}>
+											{sub.done ? '☑' : '☐'}
+										</button>
+									</form>
+									<span>{sub.title}</span>
+									<form method="POST" action="?/moveSubtask" use:enhance>
+										<input type="hidden" name="id" value={task.id} />
+										<input type="hidden" name="subtaskId" value={sub.id} />
+										<button name="dir" value="-1" disabled={i === 0} aria-label="Выше">↑</button>
+										<button name="dir" value="1" disabled={i === task.subtasks.length - 1} aria-label="Ниже">↓</button>
+									</form>
+									<form method="POST" action="?/removeSubtask" use:enhance>
+										<input type="hidden" name="id" value={task.id} />
+										<input type="hidden" name="subtaskId" value={sub.id} />
+										<button aria-label="Удалить подзадачу">✕</button>
+									</form>
+								</li>
+							{/each}
+						</ul>
+						<form method="POST" action="?/addSubtask" use:enhance class="inline">
+							<input type="hidden" name="id" value={task.id} />
+							<input name="title" placeholder="Новая подзадача…" autocomplete="off" aria-label="Подзадача" />
+							<button>+</button>
+						</form>
+
+						<form method="POST" action="?/setProject" use:enhance class="inline">
+							<input type="hidden" name="id" value={task.id} />
+							<select name="projectId" aria-label="Проект" value={task.projectId ?? ''}>
+								<option value="">Без проекта</option>
+								{#each data.projects as p (p.id)}
+									<option value={p.id}>{p.name}</option>
+								{/each}
+							</select>
+							<button>Сохранить</button>
+						</form>
+
+						<form method="POST" action="?/addTag" use:enhance class="inline">
+							<input type="hidden" name="id" value={task.id} />
+							<input name="tag" placeholder="Новый тег…" autocomplete="off" aria-label="Тег" />
+							<button>+</button>
+						</form>
+						{#each task.tags as tag (tag)}
+							<form method="POST" action="?/removeTag" use:enhance class="inline">
+								<input type="hidden" name="id" value={task.id} />
+								<input type="hidden" name="tag" value={tag} />
+								<button aria-label="Убрать тег {tag}">#{tag} ✕</button>
+							</form>
+						{/each}
 					</details>
 				</li>
 			{/each}
@@ -179,11 +283,50 @@
 		padding: 0;
 	}
 	li {
+		padding: 0.4rem 0;
+		border-bottom: 1px solid #ddd;
+	}
+	.row,
+	.subtasks li {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
+	}
+	.subtasks {
+		padding-left: 1.5rem;
+	}
+	.subtasks li {
+		border: none;
+	}
+	nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin-bottom: 1rem;
+	}
+	nav a,
+	.badge {
+		padding: 0.1rem 0.5rem;
+		border: 1px solid #ccc;
+		border-radius: 1rem;
+		text-decoration: none;
+		color: inherit;
+		font-size: 0.85rem;
+	}
+	nav a.active {
+		background: #222;
+		color: #fff;
+	}
+	.manage {
+		border-style: dashed;
+	}
+	details {
+		margin-left: 2rem;
+	}
+	.inline {
+		display: inline-flex;
+		gap: 0.3rem;
+		margin: 0.3rem 0.3rem 0 0;
 	}
 	li.done span {
 		text-decoration: line-through;
