@@ -21,6 +21,7 @@ import { changeLogModule, type ChangeLogQueries } from './changelog.js';
 import { safetyModule, type SafetyApi } from './safety.js';
 
 import { eventModule, type EventApi } from './events.js';
+import { goalModule, type GoalApi } from './goals.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList } from './tasks.js';
@@ -29,8 +30,9 @@ export type { Event, EventInput, AgendaItem } from './events.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
 export type { TrashItem } from './safety.js';
+export type { Goal, GoalStatus, GoalWithMilestones, Milestone } from './goals.js';
 
-export interface Planner extends TaskApi, OrganisingApi, EventApi, HabitApi, ChangeLogQueries, SafetyApi {}
+export interface Planner extends TaskApi, OrganisingApi, EventApi, HabitApi, GoalApi, ChangeLogQueries, SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
@@ -40,6 +42,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...organisingModule(ctx),
 		...eventModule(ctx),
 		...habitModule(ctx),
+		...goalModule(ctx),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
 	};
