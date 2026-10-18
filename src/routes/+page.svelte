@@ -18,6 +18,7 @@
 
 <main>
 	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
+	<nav><a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a></nav>
 	<h1>Задачи</h1>
 
 	<form method="POST" action="?/add" use:enhance>
@@ -49,6 +50,10 @@
 						</button>
 					</form>
 					<span>{task.title}</span>
+					<form method="POST" action="?/delete" use:enhance class="del">
+						<input type="hidden" name="id" value={task.id} />
+						<button aria-label="Удалить в корзину" title="В корзину">🗑</button>
+					</form>
 				</li>
 			{/each}
 		</ul>
@@ -87,6 +92,9 @@
 	li.done span {
 		text-decoration: line-through;
 		color: #888;
+	}
+	.del {
+		margin-left: auto;
 	}
 	.check {
 		font-size: 1.2rem;

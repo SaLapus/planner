@@ -24,6 +24,15 @@ export const actions: Actions = {
 			return fail(400, { title, error: e instanceof Error ? e.message : 'Ошибка' });
 		}
 	},
+	// Delete = move to Trash (restorable on /trash). Works the same for any entity type.
+	delete: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		try {
+			getPlanner().deleteItem(actorOf(locals), 'task', id);
+		} catch (e) {
+			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+		}
+	},
 	toggle: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
