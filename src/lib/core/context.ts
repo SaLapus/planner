@@ -34,6 +34,13 @@ export interface EntityKind<S extends { id: number } = { id: number }> {
 	write(snapshot: S): void;
 	/** Hard-delete the entity (and rows it owns). Trash keeps the snapshot; callers never see a half-deleted entity. */
 	remove(id: number): void;
+	/**
+	 * The part of a snapshot that undo compares to detect "changed since this entry". Defaults to the
+	 * whole snapshot. Use it to leave out data that is merely carried along for Trash (e.g. a Habit's
+	 * Check-ins, which are separate entities with their own entries). A `write` that finds the entity
+	 * already present should then also leave that carried-along data alone.
+	 */
+	comparable?(snapshot: S): unknown;
 	/** Short human text for Trash/Change log lists. Defaults to `type #id`. */
 	label?(snapshot: S): string;
 }

@@ -10,7 +10,9 @@
  * Habits and Check-ins are registered with the generic Trash/undo (see `ctx.entities`): delete with
  * `planner.deleteItem(actor, 'habit' | 'checkin', id)`, restore with `restoreItem`, revert with `undoChange`.
  * A Habit's snapshot (what Trash and the change log store) includes its Check-ins, so deleting and
- * restoring a Habit keeps its history.
+ * restoring a Habit keeps its history. Check-ins are still separate entities: they are NOT part of
+ * what undo compares or rewrites, so a later Check-in neither blocks undoing a Habit edit nor gets
+ * wiped by it.
  */
 import type { Actor, CoreContext } from './context.js';
 
@@ -244,10 +246,14 @@ export function habitModule(ctx: CoreContext): HabitApi {
 	entities.register<HabitSnapshot>({
 		type: 'habit',
 		read: readHabit,
+		comparable: ({ checkins: _c, ...habit }) => habit,
 		write: (h) => {
+			const exists = db.prepare('SELECT 1 FROM habit WHERE id = ?').get(h.id) !== undefined;
 			db.prepare(
 				'INSERT OR REPLACE INTO habit (id, title, schedule, archived_at, created_at, goal_id) VALUES (?, ?, ?, ?, ?, ?)'
 			).run(h.id, h.title, JSON.stringify(h.schedule), h.archivedAt, h.createdAt, h.goalId);
+			// An existing Habit keeps the Check-ins it has now; only a Habit coming back from Trash brings its history.
+			if (exists) return;
 			db.prepare('DELETE FROM habit_checkin WHERE habit_id = ?').run(h.id);
 			for (const c of h.checkins) {
 				db.prepare('INSERT INTO habit_checkin (id, habit_id, date, created_at) VALUES (?, ?, ?, ?)').run(
