@@ -198,6 +198,8 @@ export function createAuth({ config, fetch: doFetch, clock }: AuthDeps) {
 	}
 
 	return {
+		/** True when the request carries a valid owner session cookie (used by the OAuth authorize step). */
+		isOwner: hasSession,
 		async handle(request: Request): Promise<AuthResult> {
 			const url = new URL(request.url);
 			const path = url.pathname;
