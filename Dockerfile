@@ -2,7 +2,7 @@
 #   docker build -f planner/Dockerfile .
 # Needs Node 24+ because the database is the built-in `node:sqlite`.
 
-FROM node:24-slim AS build
+FROM node:26-slim AS build
 WORKDIR /app
 RUN npm install -g pnpm@11.24.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -11,7 +11,7 @@ RUN pnpm install --frozen-lockfile
 COPY planner planner
 RUN pnpm --filter planner build
 
-FROM node:24-slim
+FROM node:26-slim
 WORKDIR /app
 # The adapter-node build is self-contained: no node_modules needed at runtime.
 COPY --from=build /app/planner/build ./build
