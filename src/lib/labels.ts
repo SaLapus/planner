@@ -7,7 +7,8 @@ export const ENTITY_NAMES: Record<string, string> = {
 	checkin: 'Отметка привычки',
 	event: 'Событие',
 	goal: 'Цель',
-	milestone: 'Этап цели'
+	milestone: 'Этап цели',
+	feed: 'Календарная лента'
 };
 
 const VERBS: Record<string, string> = {
@@ -32,7 +33,8 @@ const VERBS: Record<string, string> = {
 	set_status: 'смена статуса',
 	reorder_milestones: 'порядок этапов',
 	set_milestone: 'связь с этапом цели',
-	set_goal: 'связь с целью'
+	set_goal: 'связь с целью',
+	regenerate: 'новая секретная ссылка'
 };
 
 export const entityName = (type: string) => ENTITY_NAMES[type] ?? type;

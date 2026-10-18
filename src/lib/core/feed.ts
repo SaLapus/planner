@@ -12,9 +12,10 @@
  *    (the occurrence's ORIGINAL start);
  *  - an open Task with a Time block is a plain VEVENT.
  */
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import ical, { type ICalEventData } from 'ical-generator';
 import { tzlib_get_ical_block } from 'timezones-ical-library';
-import type { CoreContext } from './context.js';
+import type { Actor, CoreContext } from './context.js';
 import type { Event, EventApi } from './events.js';
 import { toRfcRule } from './recurrence.js';
 import type { TaskApi } from './tasks.js';
@@ -22,6 +23,12 @@ import type { TaskApi } from './tasks.js';
 export interface FeedApi {
 	/** The whole feed as iCalendar text. */
 	calendarFeed(): string;
+	/** The secret in the feed URL (`/feed/<secret>.ics`). Random, stored in the database. */
+	feedSecret(): string;
+	/** Whether `candidate` is the current secret. Compares in constant time. */
+	isFeedSecret(candidate: string): boolean;
+	/** Replace the secret; the old URL stops working. Logged (without the secret itself). Returns the new secret. */
+	regenerateFeedSecret(actor: Actor): string;
 }
 
 /** Zoned time for a stored UTC instant. ical-generator formats ZonedDateTime without touching the process zone. */
@@ -33,7 +40,7 @@ const compact = (wall: string) =>
 	Temporal.PlainDateTime.from(wall).toString({ smallestUnit: 'second' }).replace(/[-:]/g, '');
 
 export function feedModule(
-	{ db, homeTimeZone }: CoreContext,
+	{ db, homeTimeZone, atomically, record }: CoreContext,
 	{ getEvent }: Pick<EventApi, 'getEvent'>,
 	{ listTasks }: Pick<TaskApi, 'listTasks'>
 ): FeedApi {
@@ -100,7 +107,21 @@ export function feedModule(
 		}
 	}
 
+	const feedSecret = () => (db.prepare('SELECT secret FROM feed_secret WHERE id = 1').get() as { secret: string }).secret;
+	const digest = (s: string) => createHash('sha256').update(s).digest();
+
 	return {
+		feedSecret,
+		isFeedSecret: (candidate) => timingSafeEqual(digest(candidate), digest(feedSecret())),
+		regenerateFeedSecret(actor) {
+			return atomically(() => {
+				const secret = randomBytes(32).toString('hex');
+				db.prepare('UPDATE feed_secret SET secret = ? WHERE id = 1').run(secret);
+				// The secret is deliberately NOT written to the Change log (it is shown in the UI).
+				record(actor, 'regenerate', 'feed', 1, null, null);
+				return secret;
+			});
+		},
 		calendarFeed() {
 			const cal = ical({
 				prodId: { company: 'selfserver', product: 'planner', language: 'RU' },
