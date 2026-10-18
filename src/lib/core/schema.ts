@@ -64,6 +64,24 @@ const MIGRATIONS: string[] = [
 		UNIQUE (entity_type, entity_id)
 	);
 	`,
+	// One-off Events (ticket #8). Deletion goes through the generic Trash, so no deleted_at.
+	`
+	CREATE TABLE event (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		title       TEXT NOT NULL,
+		notes       TEXT NOT NULL DEFAULT '',
+		location    TEXT NOT NULL DEFAULT '',
+		all_day     INTEGER NOT NULL,
+		time_zone   TEXT NOT NULL,
+		start_at    TEXT,
+		end_at      TEXT,
+		start_date  TEXT,
+		end_date    TEXT,
+		recurrence  TEXT,
+		created_at  TEXT NOT NULL,
+		updated_at  TEXT NOT NULL
+	);
+	`,
 	// Habits and Check-ins (#12). Deleting is handled by the generic Trash (rows are removed, snapshot kept in `trash`).
 	`
 	CREATE TABLE habit (

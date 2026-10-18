@@ -4,7 +4,8 @@ export const ENTITY_NAMES: Record<string, string> = {
 	task: 'Задача',
 	project: 'Проект',
 	habit: 'Привычка',
-	checkin: 'Отметка привычки'
+	checkin: 'Отметка привычки',
+	event: 'Событие'
 };
 
 const VERBS: Record<string, string> = {
