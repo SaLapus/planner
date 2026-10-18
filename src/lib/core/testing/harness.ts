@@ -34,6 +34,8 @@ export interface TestPlannerOptions {
 	homeTimeZone?: string;
 	/** Initial fake time (ISO string). */
 	now?: string;
+	/** Trash retention in days (production default 30). */
+	trashRetentionDays?: number;
 }
 
 export function createTestPlanner(options: TestPlannerOptions = {}): {
@@ -47,7 +49,8 @@ export function createTestPlanner(options: TestPlannerOptions = {}): {
 	const planner = createPlanner({
 		db,
 		clock,
-		homeTimeZone: options.homeTimeZone ?? 'Europe/Istanbul'
+		homeTimeZone: options.homeTimeZone ?? 'Europe/Istanbul',
+		trashRetentionDays: options.trashRetentionDays
 	});
 	return { planner, clock, db };
 }

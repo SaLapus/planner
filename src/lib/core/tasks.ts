@@ -29,12 +29,30 @@ const toTask = (r: TaskRow): Task => ({
 	createdAt: r.created_at
 });
 
-export function taskModule({ db, nowIso, atomically, record }: CoreContext): TaskApi {
+export function taskModule({ db, nowIso, atomically, record, entities }: CoreContext): TaskApi {
 	function getTask(id: number): Task {
 		const row = db.prepare('SELECT * FROM task WHERE id = ?').get(id) as TaskRow | undefined;
 		if (!row) throw new Error(`Task ${id} not found`);
 		return toTask(row);
 	}
+
+	// Makes Tasks trashable and undoable (see "How to make a new entity trashable/undoable" in README).
+	entities.register<Task>({
+		type: 'task',
+		read: (id) => {
+			const row = db.prepare('SELECT * FROM task WHERE id = ?').get(id) as TaskRow | undefined;
+			return row ? toTask(row) : null;
+		},
+		write: (t) => {
+			db.prepare(
+				'INSERT OR REPLACE INTO task (id, title, completed_at, created_at) VALUES (?, ?, ?, ?)'
+			).run(t.id, t.title, t.completedAt, t.createdAt);
+		},
+		remove: (id) => {
+			db.prepare('DELETE FROM task WHERE id = ?').run(id);
+		},
+		label: (t) => t.title
+	});
 
 	function setCompletion(actor: Actor, id: number, complete: boolean): Task {
 		return atomically(() => {

@@ -16,18 +16,22 @@ import { migrate } from './schema.js';
 import { createContext, type PlannerDeps } from './context.js';
 import { taskModule, type TaskApi } from './tasks.js';
 import { changeLogModule, type ChangeLogQueries } from './changelog.js';
+import { safetyModule, type SafetyApi } from './safety.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task } from './tasks.js';
 export type { ChangeLogEntry } from './changelog.js';
 
-export interface Planner extends TaskApi, ChangeLogQueries {}
+export type { TrashItem } from './safety.js';
+
+export interface Planner extends TaskApi, ChangeLogQueries, SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
 	return {
 		...taskModule(ctx),
-		...changeLogModule(ctx)
+		...changeLogModule(ctx),
+		...safetyModule(ctx)
 	};
 }

@@ -23,6 +23,17 @@ const MIGRATIONS: string[] = [
 		before      TEXT,
 		after       TEXT
 	);
+	`,
+	// Trash: one row per soft-deleted entity, holding its full snapshot until restored or purged.
+	`
+	CREATE TABLE trash (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		entity_type TEXT NOT NULL,
+		entity_id   INTEGER NOT NULL,
+		deleted_at  TEXT NOT NULL,
+		snapshot    TEXT NOT NULL,
+		UNIQUE (entity_type, entity_id)
+	);
 	`
 ];
 
