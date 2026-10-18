@@ -5,21 +5,19 @@ import type { AgendaItem, EventAgendaItem, TaskAgendaItem } from '#lib/core/inde
 const dayFmt = new Intl.DateTimeFormat('ru', {
 	weekday: 'long',
 	day: 'numeric',
-	month: 'long',
-	timeZone: 'UTC' // the date is already a plain calendar date; UTC just stops any shifting
+	month: 'long'
 });
-const shortFmt = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const shortFmt = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short' });
 
-const asUtc = (date: string) => new Date(`${date}T00:00:00Z`);
+// A calendar date has no time zone: Temporal.PlainDate, never a Date at UTC midnight.
+const plain = (date: string) => Temporal.PlainDate.from(date);
 
 /** "понедельник, 5 января" */
-export const dayLabel = (date: string) => dayFmt.format(asUtc(date));
+export const dayLabel = (date: string) => dayFmt.format(plain(date));
 
 /** Add `n` days to a "YYYY-MM-DD" date. */
 export function addDays(date: string, n: number): string {
-	const d = asUtc(date);
-	d.setUTCDate(d.getUTCDate() + n);
-	return d.toISOString().slice(0, 10);
+	return plain(date).add({ days: n }).toString();
 }
 
 const time = (local: string) => local.slice(11, 16);
@@ -30,12 +28,12 @@ export function whenLabel(e: EventAgendaItem): string {
 	if (e.allDay) {
 		return e.start === e.end
 			? 'Весь день'
-			: `Весь день, ${shortFmt.format(asUtc(e.start))} – ${shortFmt.format(asUtc(e.end))}`;
+			: `Весь день, ${shortFmt.format(plain(e.start))} – ${shortFmt.format(plain(e.end))}`;
 	}
 	if (datePart(e.startLocal) === datePart(e.endLocal)) {
 		return `${time(e.startLocal)}–${time(e.endLocal)}`;
 	}
-	return `${shortFmt.format(asUtc(datePart(e.startLocal)))} ${time(e.startLocal)} – ${shortFmt.format(asUtc(datePart(e.endLocal)))} ${time(e.endLocal)}`;
+	return `${shortFmt.format(plain(datePart(e.startLocal)))} ${time(e.startLocal)} – ${shortFmt.format(plain(datePart(e.endLocal)))} ${time(e.endLocal)}`;
 }
 
 /** For an Event in another zone: "Europe/Kyiv, у вас 10:30". Empty when it matches Home time. */
@@ -48,7 +46,7 @@ export function zoneNote(e: EventAgendaItem): string {
 export function taskWhenLabel(t: TaskAgendaItem): string {
 	if (t.placement === 'due') return t.allDay ? 'Срок: весь день' : `Срок: ${time(t.startHome)}`;
 	if (datePart(t.startHome) === datePart(t.endHome)) return `${time(t.startHome)}–${time(t.endHome)}`;
-	return `${shortFmt.format(asUtc(datePart(t.startHome)))} ${time(t.startHome)} – ${shortFmt.format(asUtc(datePart(t.endHome)))} ${time(t.endHome)}`;
+	return `${shortFmt.format(plain(datePart(t.startHome)))} ${time(t.startHome)} – ${shortFmt.format(plain(datePart(t.endHome)))} ${time(t.endHome)}`;
 }
 
 /**
@@ -96,8 +94,7 @@ export type EventRow = ReturnType<typeof toRow>;
 
 /** The Monday of the week containing `date` (weeks start on Monday). */
 export function mondayOf(date: string): string {
-	const sundayFirst = asUtc(date).getUTCDay(); // 0 = Sunday ... 6 = Saturday
-	return addDays(date, -((sundayFirst + 6) % 7));
+	return plain(date).subtract({ days: plain(date).dayOfWeek - 1 }).toString(); // dayOfWeek: 1 = Monday
 }
 
 /** The seven dates, Monday to Sunday, of the week containing `date`. */
