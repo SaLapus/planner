@@ -35,7 +35,7 @@ describe('task scheduling tools', () => {
 	it('get_task_list returns the smart lists and search_tasks finds by text', async () => {
 		const t = createTestConnector();
 		const claude = await t.connectClaude();
-		const call = async (name: string, args: object) =>
+		const call = async (name: string, args: Record<string, unknown>) =>
 			toolJson<T[]>(await claude.callTool({ name, arguments: args }));
 		await call('create_task', { title: 'old', due: '2001-01-01' });
 		await call('create_task', { title: 'later', due: '2999-01-01' });
