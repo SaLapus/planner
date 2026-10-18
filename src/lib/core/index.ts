@@ -23,6 +23,7 @@ import { safetyModule, type SafetyApi } from './safety.js';
 import { eventModule, type EventApi } from './events.js';
 import { goalModule, type GoalApi } from './goals.js';
 import { agendaModule, type AgendaApi } from './agenda.js';
+import { reviewModule, type ReviewApi } from './reviews.js';
 import { statsModule, type StatsApi } from './stats.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
@@ -43,6 +44,7 @@ export interface Planner
 		AgendaApi,
 		HabitApi,
 		GoalApi,
+		ReviewApi,
 		StatsApi,
 		ChangeLogQueries,
 		SafetyApi {}
@@ -61,6 +63,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...agendaModule(ctx, eventAgenda),
 		...habits,
 		...goals,
+		...reviewModule(ctx, habits, goals),
 		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
