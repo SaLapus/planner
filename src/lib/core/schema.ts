@@ -23,6 +23,25 @@ const MIGRATIONS: string[] = [
 		before      TEXT,
 		after       TEXT
 	);
+	`,
+	// Habits and Check-ins (#12). Soft delete via deleted_at.
+	`
+	CREATE TABLE habit (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		title       TEXT NOT NULL,
+		schedule    TEXT NOT NULL,
+		archived_at TEXT,
+		deleted_at  TEXT,
+		created_at  TEXT NOT NULL
+	);
+	CREATE TABLE habit_checkin (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		habit_id   INTEGER NOT NULL REFERENCES habit(id),
+		date       TEXT NOT NULL,
+		deleted_at TEXT,
+		created_at TEXT NOT NULL
+	);
+	CREATE UNIQUE INDEX habit_checkin_active ON habit_checkin(habit_id, date) WHERE deleted_at IS NULL;
 	`
 ];
 
