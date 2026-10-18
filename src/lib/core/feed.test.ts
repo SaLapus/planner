@@ -1,20 +1,8 @@
-import ICAL from 'ical.js';
 import { describe, expect, it } from 'vitest';
 import { createTestPlanner } from './testing/harness.js';
+import { ICAL, parseFeed } from './testing/ics.js';
 
-/** Parse the feed text back with an independent iCal parser. */
-function parse(text: string) {
-	const root = new ICAL.Component(ICAL.parse(text));
-	return root.getAllSubcomponents('vevent').map((v) => ({
-		uid: v.getFirstPropertyValue('uid') as string,
-		summary: v.getFirstPropertyValue('summary') as string,
-		dtstart: v.getFirstProperty('dtstart')?.toICALString(),
-		dtend: v.getFirstProperty('dtend')?.toICALString(),
-		rrule: v.getFirstProperty('rrule')?.toICALString(),
-		exdate: v.getAllProperties('exdate').map((p) => p.toICALString()),
-		recurrenceId: v.getFirstProperty('recurrence-id')?.toICALString()
-	}));
-}
+const parse = (text: string) => parseFeed(text).events;
 
 describe('calendar feed: recurring Events', () => {
 	function seriesWithExceptions() {
@@ -54,8 +42,69 @@ describe('calendar feed: recurring Events', () => {
 
 	it('includes a VTIMEZONE for the zone used, so DST is right in the calendar app', () => {
 		const { planner } = seriesWithExceptions();
-		const root = new ICAL.Component(ICAL.parse(planner.calendarFeed()));
-		const tz = root.getAllSubcomponents('vtimezone').map((v) => v.getFirstPropertyValue('tzid'));
-		expect(tz).toContain('Europe/Kyiv');
+		expect(parseFeed(planner.calendarFeed()).timeZones).toContain('Europe/Kyiv');
+	});
+});
+
+describe('calendar feed: all-day Events', () => {
+	it('exports dates (VALUE=DATE) with an exclusive DTEND, since the core end date is inclusive', () => {
+		const { planner } = createTestPlanner();
+		const trip = planner.createEvent('owner', {
+			title: 'Поездка',
+			allDay: true,
+			start: '2026-05-01',
+			end: '2026-05-03'
+		});
+		const [e] = parse(planner.calendarFeed());
+		expect(e.uid).toBe(`event-${trip.id}@planner`);
+		expect(e.dtstart).toBe('DTSTART;VALUE=DATE:20260501');
+		expect(e.dtend).toBe('DTEND;VALUE=DATE:20260504');
+	});
+
+	it('exports a yearly all-day series with a cancelled year as EXDATE and an edited year as an override', () => {
+		const { planner } = createTestPlanner();
+		const bday = planner.createEvent('owner', {
+			title: 'День рождения',
+			allDay: true,
+			start: '2026-07-10',
+			recurrence: 'FREQ=YEARLY'
+		});
+		planner.cancelOccurrence('owner', bday.id, '2027-07-10');
+		planner.updateOccurrence('owner', bday.id, '2028-07-10', { title: 'Юбилей' });
+		const events = parse(planner.calendarFeed());
+		const master = events.find((e) => !e.recurrenceId)!;
+		expect(master.rrule).toBe('RRULE:FREQ=YEARLY');
+		expect(master.exdate).toEqual(['EXDATE;VALUE=DATE:20270710']);
+		const edited = events.find((e) => e.recurrenceId)!;
+		expect(edited.recurrenceId).toBe('RECURRENCE-ID;VALUE=DATE:20280710');
+		expect(edited.dtstart).toBe('DTSTART;VALUE=DATE:20280710');
+		expect(edited.summary).toBe('Юбилей');
+	});
+});
+
+describe('calendar feed: time zones across DST', () => {
+	it('lets an independent iCal engine expand the series to the same instants as the core agenda', () => {
+		const { planner } = createTestPlanner();
+		// Kyiv switches to summer time on 2026-03-29: wall clock stays 09:00, the UTC instant moves.
+		planner.createEvent('owner', {
+			title: 'Зарядка',
+			timeZone: 'Europe/Kyiv',
+			start: '2026-03-27T09:00',
+			recurrence: 'FREQ=DAILY;COUNT=4'
+		});
+		const { root } = parseFeed(planner.calendarFeed());
+		const event = new ICAL.Event(root.getFirstSubcomponent('vevent')!);
+		const fromIcal: string[] = [];
+		const iterator = event.iterator();
+		for (let next = iterator.next(); next; next = iterator.next()) {
+			fromIcal.push(next.toJSDate().toISOString());
+		}
+		// 09:00 Kyiv is 07:00Z before the switch (UTC+2) and 06:00Z after it (UTC+3)
+		expect(fromIcal).toEqual([
+			'2026-03-27T07:00:00.000Z',
+			'2026-03-28T07:00:00.000Z',
+			'2026-03-29T06:00:00.000Z',
+			'2026-03-30T06:00:00.000Z'
+		]);
 	});
 });
