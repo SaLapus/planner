@@ -5,7 +5,9 @@
  */
 import type { RegisterTools } from './support.js';
 import { registerTaskTools } from './tasks.js';
+import { registerHabitTools } from './habits.js';
 
 export const toolModules: RegisterTools[] = [
-	registerTaskTools
+	registerTaskTools,
+	registerHabitTools
 ];
