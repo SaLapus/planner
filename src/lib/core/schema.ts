@@ -129,6 +129,11 @@ const MIGRATIONS: string[] = [
 	// Recurring Events (ticket #10): per-occurrence changes (cancellations, edits) as JSON keyed by recurrenceId.
 	`
 	ALTER TABLE event ADD COLUMN overrides TEXT NOT NULL DEFAULT '{}';
+	`,
+	// Repeating Tasks (ticket #11): repetition as JSON, plus the id of the next instance created on completion.
+	`
+	ALTER TABLE task ADD COLUMN repeat TEXT;
+	ALTER TABLE task ADD COLUMN next_id INTEGER;
 	`
 ];
 
