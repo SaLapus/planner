@@ -39,12 +39,15 @@ export interface TestPlannerOptions {
 export function createTestPlanner(options: TestPlannerOptions = {}): {
 	planner: Planner;
 	clock: FakeClock;
+	/** The in-memory database behind `planner`; for infrastructure that shares it (e.g. OAuth tokens), not for assertions. */
+	db: DatabaseSync;
 } {
 	const clock = createFakeClock(options.now);
+	const db = new DatabaseSync(':memory:');
 	const planner = createPlanner({
-		db: new DatabaseSync(':memory:'),
+		db,
 		clock,
 		homeTimeZone: options.homeTimeZone ?? 'Europe/Istanbul'
 	});
-	return { planner, clock };
+	return { planner, clock, db };
 }
