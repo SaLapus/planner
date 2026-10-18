@@ -5,7 +5,7 @@
  * Periods are in the Home time zone: a week is ISO Monday..Sunday, a month is a calendar month.
  */
 import type { Actor, CoreContext } from './context.js';
-import type { Habit, HabitApi, PeriodType } from './habits.js';
+import { habitCreatedOn, habitExistedBy, type Habit, type HabitApi, type PeriodType } from './habits.js';
 import type { GoalApi, GoalProgress } from './goals.js';
 import type { Task } from './tasks.js';
 import { readTask } from './tasks.js';
@@ -174,17 +174,19 @@ export function reviewModule(ctx: CoreContext, habits: HabitApi, goals: GoalApi)
 
 	function habitReviews(period: ReviewPeriod): HabitReview[] {
 		const now = today().toString();
+		// Habits that existed during the period (created by its end, not in Trash), including ones
+		// archived AFTER the period; ones archived before or during it are left out.
 		return habits
-			.listHabits()
-			.filter((h) => localDateOf(h.createdAt) <= period.end)
+			.listHabits({ includeArchived: true })
+			.filter((h) => habitCreatedOn(h, homeTimeZone) <= period.end)
+			.filter((h) => h.archivedAt === null || localDateOf(h.archivedAt) > period.end)
 			.map((habit) => {
 				const hType: PeriodType = habit.schedule.type === 'per_month' ? 'month' : 'week';
-				const created = localDateOf(habit.createdAt);
 				const periods: HabitPeriodResult[] = [];
 				let p = periodOf(hType, Temporal.PlainDate.from(period.start));
 				while (p.end <= period.end) {
 					// Only periods that have ended (before today) and that the Habit already existed in are judged.
-					if (p.end < now && p.end >= created) {
+					if (p.end < now && habitExistedBy(habit, p.end, homeTimeZone)) {
 						const s = habits.habitStatus({ habitId: habit.id, date: p.start }).habits[0];
 						periods.push({ start: p.start, end: p.end, done: s.done, target: s.target, met: s.met });
 					}

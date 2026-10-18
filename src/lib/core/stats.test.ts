@@ -5,8 +5,9 @@ import { createTestPlanner } from './testing/harness.js';
 // Weeks: Dec 15-21, Dec 22-28, Dec 29-Jan 4, Jan 5-11.
 describe('stats: habit hit-rates', () => {
 	it('lists the last periods oldest first, with done/target per period', () => {
-		const { planner } = createTestPlanner({ now: '2026-01-07T09:00:00.000Z' });
+		const { planner, clock } = createTestPlanner({ now: '2025-12-20T09:00:00.000Z' });
 		const h = planner.createHabit('owner', { title: 'Зал', schedule: { type: 'per_week', count: 2 } });
+		clock.set('2026-01-07T09:00:00.000Z');
 		for (const date of ['2025-12-23', '2025-12-25', '2025-12-30', '2026-01-06'])
 			planner.addCheckin('owner', h.id, { date });
 
@@ -23,11 +24,22 @@ describe('stats: habit hit-rates', () => {
 		expect(habits[0].hitRate).toBe(50);
 	});
 
+	it('does not count Periods from before the Habit existed as unmet', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-07T09:00:00.000Z' });
+		planner.createHabit('owner', { title: 'Новая', schedule: { type: 'per_week', count: 2 } });
+
+		const [h] = planner.stats({ periods: 4 }).habits;
+
+		expect(h.periods.map((p) => [p.start, p.open])).toEqual([['2026-01-05', true]]);
+		expect(h.hitRate).toBeNull();
+	});
+
 	it('uses months for per-month habits and skips archived ones', () => {
-		const { planner } = createTestPlanner({ now: '2026-02-10T09:00:00.000Z' });
+		const { planner, clock } = createTestPlanner({ now: '2026-01-02T09:00:00.000Z' });
 		const m = planner.createHabit('owner', { title: 'Звонок', schedule: { type: 'per_month', count: 1 } });
 		const old = planner.createHabit('owner', { title: 'Старое', schedule: { type: 'per_week', count: 1 } });
 		planner.archiveHabit('owner', old.id);
+		clock.set('2026-02-10T09:00:00.000Z');
 		planner.addCheckin('owner', m.id, { date: '2026-01-15' });
 
 		const { habits } = planner.stats({ periods: 2 });

@@ -163,6 +163,17 @@ function parseDate(s: string): Temporal.PlainDate {
 	}
 }
 
+/** The local (Home zone) calendar date a Habit was created on. */
+export const habitCreatedOn = (habit: Habit, homeTimeZone: string): string =>
+	Temporal.Instant.from(habit.createdAt).toZonedDateTimeISO(homeTimeZone).toPlainDate().toString();
+
+/**
+ * Whether a Period (ending on local date `periodEnd`) is one the Habit already existed in. Periods
+ * that ended before the Habit was created are not judged (shared by Reviews and Stats).
+ */
+export const habitExistedBy = (habit: Habit, periodEnd: string, homeTimeZone: string): boolean =>
+	periodEnd >= habitCreatedOn(habit, homeTimeZone);
+
 export function habitModule(ctx: CoreContext): HabitApi {
 	const { db, nowIso, atomically, record, entities, homeTimeZone } = ctx;
 
