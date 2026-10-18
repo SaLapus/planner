@@ -2,7 +2,8 @@
 // A new entity area adds ONE line to ENTITY_NAMES; unknown types simply show their code name.
 export const ENTITY_NAMES: Record<string, string> = {
 	task: 'Задача',
-	project: 'Проект'
+	project: 'Проект',
+	event: 'Событие'
 };
 
 const VERBS: Record<string, string> = {

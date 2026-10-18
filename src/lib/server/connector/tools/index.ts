@@ -7,9 +7,11 @@ import type { RegisterTools } from './support.js';
 import { registerTaskTools } from './tasks.js';
 import { registerOrganisingTools } from './organising.js';
 import { registerSafetyTools } from './safety.js';
+import { registerEventTools } from './events.js';
 
 export const toolModules: RegisterTools[] = [
 	registerTaskTools,
 	registerOrganisingTools,
-	registerSafetyTools
+	registerSafetyTools,
+	registerEventTools
 ];

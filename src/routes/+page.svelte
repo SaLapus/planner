@@ -48,7 +48,7 @@
 
 <main>
 	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
-	<nav><a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a></nav>
+	<nav><a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a> · <a href="/events">Расписание</a></nav>
 	<h1>Задачи</h1>
 
 	<!-- A plain GET form: submitting it reloads the page with ?q=..., and `load` does the search. -->
