@@ -23,6 +23,24 @@ const MIGRATIONS: string[] = [
 		before      TEXT,
 		after       TEXT
 	);
+	`,
+	`
+	CREATE TABLE event (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		title       TEXT NOT NULL,
+		notes       TEXT NOT NULL DEFAULT '',
+		location    TEXT NOT NULL DEFAULT '',
+		all_day     INTEGER NOT NULL,
+		time_zone   TEXT NOT NULL,
+		start_at    TEXT,
+		end_at      TEXT,
+		start_date  TEXT,
+		end_date    TEXT,
+		recurrence  TEXT,
+		created_at  TEXT NOT NULL,
+		updated_at  TEXT NOT NULL,
+		deleted_at  TEXT
+	);
 	`
 ];
 
