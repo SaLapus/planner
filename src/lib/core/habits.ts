@@ -73,6 +73,8 @@ export interface HabitApi {
 	/** Soft delete of the Check-in on that local date (default: today). */
 	removeCheckin(actor: Actor, habitId: number, input: { date?: string }): Checkin;
 	restoreCheckin(actor: Actor, checkinId: number): Checkin;
+	/** Local dates (sorted) with a Check-in for the Habit, between `from` and `to` inclusive. */
+	listCheckinDates(habitId: number, range: { from: string; to: string }): string[];
 	listDeletedCheckins(): Checkin[];
 
 	/**
@@ -374,6 +376,11 @@ export function habitModule(ctx: CoreContext): HabitApi {
 					.prepare('SELECT id, habit_id, date FROM habit_checkin WHERE deleted_at IS NOT NULL ORDER BY id')
 					.all() as { id: number; habit_id: number; date: string }[]
 			).map(toCheckin);
+		},
+
+		listCheckinDates(habitId, { from, to }) {
+			getHabit(habitId);
+			return checkinDates(habitId).filter((d) => d >= from && d <= to);
 		},
 
 		habitStatus(opts) {

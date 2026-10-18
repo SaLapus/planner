@@ -18,6 +18,7 @@
 
 <main>
 	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
+	<nav><a href="/habits">Привычки</a></nav>
 	<h1>Задачи</h1>
 
 	<form method="POST" action="?/add" use:enhance>

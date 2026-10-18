@@ -254,3 +254,16 @@ describe('trash and restore', () => {
 		expect(() => planner.restoreCheckin('owner', c.id)).toThrow(/already/);
 	});
 });
+
+describe('listing check-in dates', () => {
+	it('returns the dates inside the range, across period boundaries', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-14T09:00:00.000Z' });
+		const h = gym(planner);
+		checkIn(planner, h.id, '2026-01-02', '2026-01-05', '2026-01-12');
+
+		expect(planner.listCheckinDates(h.id, { from: '2026-01-04', to: '2026-01-14' })).toEqual([
+			'2026-01-05',
+			'2026-01-12'
+		]);
+	});
+});
