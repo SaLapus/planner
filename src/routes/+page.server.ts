@@ -4,6 +4,7 @@
 import { fail } from '@sveltejs/kit';
 import { getPlanner, HOME_TIME_ZONE } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
+import { repeatFields, repeatLabel, repeatOf } from './repeat-form.js';
 
 // Every UI request has passed the login check in hooks.server.ts, which sets locals.actor to 'owner'.
 function actorOf(locals: App.Locals) {
@@ -80,7 +81,12 @@ export const load: PageServerLoad = ({ url }) => {
 		);
 	}
 	return {
-		tasks: tasks.map((t) => ({ ...t, block: blockFields(t.timeBlock) })),
+		tasks: tasks.map((t) => ({
+			...t,
+			block: blockFields(t.timeBlock),
+			repeatForm: repeatFields(t.repeat),
+			repeatText: repeatLabel(t.repeat)
+		})),
 		list,
 		q,
 		projects: planner.listProjects(),
@@ -123,6 +129,17 @@ export const actions: Actions = {
 				priority: priorityOf(data),
 				timeBlock: blockOf(data)
 			});
+		} catch (e) {
+			return fail(400, { error: errorText(e) });
+		}
+	},
+	// Repetition has its own small form so that saving the main edit form never changes it.
+	setRepeat: async ({ request, locals }) => {
+		const f = await request.formData();
+		const repeat = repeatOf(f);
+		if (repeat === undefined) return;
+		try {
+			getPlanner().updateTask(actorOf(locals), Number(f.get('id')), { repeat });
 		} catch (e) {
 			return fail(400, { error: errorText(e) });
 		}
