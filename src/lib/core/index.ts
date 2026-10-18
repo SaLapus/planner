@@ -30,19 +30,20 @@ export type { Event, EventInput, AgendaItem } from './events.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
 export type { TrashItem } from './safety.js';
-export type { Goal, GoalStatus, GoalWithMilestones, Milestone } from './goals.js';
+export type { Goal, GoalStatus, GoalWithMilestones, Milestone, GoalProgress } from './goals.js';
 
 export interface Planner extends TaskApi, OrganisingApi, EventApi, HabitApi, GoalApi, ChangeLogQueries, SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
+	const habits = habitModule(ctx);
 	return {
 		...taskModule(ctx),
 		...organisingModule(ctx),
 		...eventModule(ctx),
-		...habitModule(ctx),
-		...goalModule(ctx),
+		...habits,
+		...goalModule(ctx, habits),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
 	};

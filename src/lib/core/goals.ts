@@ -19,6 +19,8 @@
  *  - After purge (30 days) the link stays dormant forever; clear it by linking to null.
  */
 import type { Actor, CoreContext } from './context.js';
+import type { Habit, HabitApi, HabitStatus } from './habits.js';
+import { readTask, type Task } from './tasks.js';
 
 export const GOAL_STATUSES = ['active', 'paused', 'achieved', 'dropped'] as const;
 export type GoalStatus = (typeof GOAL_STATUSES)[number];
@@ -46,6 +48,25 @@ export interface Milestone {
 /** A Goal with its ordered Milestones: what Trash and the change log keep. */
 export type GoalWithMilestones = Goal & { milestones: Milestone[] };
 
+/**
+ * Everything about one Goal's progress. Links to Milestones / Goals that are in Trash are not counted
+ * (dormant, see the policy above).
+ */
+export interface GoalProgress {
+	goal: Goal;
+	milestones: {
+		done: number;
+		total: number;
+		/** done / total as a whole percent (0 when there are no Milestones). */
+		percent: number;
+	};
+	milestoneList: Milestone[];
+	/** Tasks linked to any Milestone of this Goal (done ones included), with the Milestone they serve. */
+	tasks: { done: number; total: number; items: { task: Task; milestoneId: number }[] };
+	/** Habits linked to this Goal (archived ones too), each with its current Period status and Streak. */
+	habits: HabitStatus[];
+}
+
 export interface GoalApi {
 	createGoal(actor: Actor, input: { title: string; description?: string; targetDate?: string | null }): Goal;
 	updateGoal(
@@ -64,6 +85,17 @@ export interface GoalApi {
 	setMilestoneDone(actor: Actor, id: number, done: boolean): Milestone;
 	/** `orderedIds` must list every Milestone of the Goal exactly once. */
 	reorderMilestones(actor: Actor, goalId: number, orderedIds: number[]): GoalWithMilestones;
+
+	/** Link a Task to a Milestone (or `null` to unlink). The Milestone must exist (not be in Trash). */
+	setTaskMilestone(actor: Actor, taskId: number, milestoneId: number | null): Task;
+	/** Link a Habit to a Goal (or `null` to unlink). The Goal must exist (not be in Trash). */
+	linkHabitToGoal(actor: Actor, habitId: number, goalId: number | null): Habit;
+
+	/**
+	 * Progress of one Goal (`goalId`) or of every active Goal (default; `includeInactive` adds paused /
+	 * achieved / dropped ones). Habit status is as of today, via `habitStatus`. Reused by Reviews and Stats.
+	 */
+	goalProgress(opts: { goalId?: number; includeInactive?: boolean }): GoalProgress[];
 }
 
 interface GoalRow {
@@ -115,7 +147,7 @@ function cleanDate(d: string | null | undefined): string | null {
 	}
 }
 
-export function goalModule(ctx: CoreContext): GoalApi {
+export function goalModule(ctx: CoreContext, habits: HabitApi): GoalApi {
 	const { db, nowIso, atomically, record, entities } = ctx;
 
 	const milestonesOf = (goalId: number): Milestone[] =>
@@ -196,6 +228,33 @@ export function goalModule(ctx: CoreContext): GoalApi {
 		});
 	}
 
+	function progressOf(goal: Goal): GoalProgress {
+		const milestoneList = milestonesOf(goal.id);
+		const done = milestoneList.filter((m) => m.done).length;
+		const items = (
+			db
+				.prepare(
+					`SELECT t.id, t.milestone_id FROM task t JOIN milestone m ON m.id = t.milestone_id
+					 WHERE m.goal_id = ? ORDER BY m.position, m.id, t.id`
+				)
+				.all(goal.id) as { id: number; milestone_id: number }[]
+		).map((r) => ({ task: readTask(db, r.id), milestoneId: r.milestone_id }));
+		const habitIds = (
+			db.prepare('SELECT id FROM habit WHERE goal_id = ? ORDER BY id').all(goal.id) as { id: number }[]
+		).map((r) => r.id);
+		return {
+			goal,
+			milestones: {
+				done,
+				total: milestoneList.length,
+				percent: milestoneList.length === 0 ? 0 : Math.round((done / milestoneList.length) * 100)
+			},
+			milestoneList,
+			tasks: { done: items.filter((i) => i.task.completedAt !== null).length, total: items.length, items },
+			habits: habitIds.map((habitId) => habits.habitStatus({ habitId, includeArchived: true }).habits[0])
+		};
+	}
+
 	return {
 		createGoal(actor, input) {
 			const title = cleanTitle(input.title, 'Goal');
@@ -263,6 +322,34 @@ export function goalModule(ctx: CoreContext): GoalApi {
 				if (before.done === done) throw new Error(`Milestone ${id} is already ${done ? 'done' : 'not done'}`);
 				db.prepare('UPDATE milestone SET done = ? WHERE id = ?').run(done ? 1 : 0, id);
 			});
+		},
+		setTaskMilestone(actor, taskId, milestoneId) {
+			return atomically(() => {
+				const before = readTask(db, taskId);
+				if (milestoneId !== null) milestone(milestoneId);
+				db.prepare('UPDATE task SET milestone_id = ? WHERE id = ?').run(milestoneId, taskId);
+				const after = readTask(db, taskId);
+				record(actor, 'task.set_milestone', 'task', taskId, before, after);
+				return after;
+			});
+		},
+		linkHabitToGoal(actor, habitId, goalId) {
+			const kind = entities.get('habit')!;
+			return atomically(() => {
+				const before = kind.read(habitId);
+				if (!before) throw new Error(`Habit ${habitId} not found`);
+				if (goalId !== null) snapshot(goalId);
+				db.prepare('UPDATE habit SET goal_id = ? WHERE id = ?').run(goalId, habitId);
+				const after = kind.read(habitId) as Habit & { checkins: unknown };
+				record(actor, 'habit.set_goal', 'habit', habitId, before, after);
+				const { checkins: _c, ...habit } = after;
+				return habit;
+			});
+		},
+		goalProgress(opts) {
+			if (opts.goalId !== undefined) return [progressOf(plain(snapshot(opts.goalId)))];
+			const goals = this.listGoals();
+			return goals.filter((g) => opts.includeInactive || g.status === 'active').map(progressOf);
 		},
 		reorderMilestones(actor, goalId, orderedIds) {
 			return atomically(() => {
