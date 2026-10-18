@@ -55,7 +55,6 @@ export function createPlanner(deps: PlannerDeps): Planner {
 	const habits = habitModule(ctx);
 	const goals = goalModule(ctx, habits);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
-	const goals = goalModule(ctx, habits);
 	return {
 		...taskModule(ctx),
 		...organisingModule(ctx),
