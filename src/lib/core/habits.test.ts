@@ -60,3 +60,18 @@ describe('habits: create, edit, archive', () => {
 		expect(planner.habitStatus({}).habits[0].done).toBe(1);
 	});
 });
+
+describe('habits: removeCheckin', () => {
+	it('moves the Check-in of a date to Trash (restorable) and returns it; errors when there is none', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-07T09:00:00.000Z' });
+		const h = planner.createHabit('owner', { title: 'Зал', schedule: { type: 'per_week', count: 3 } });
+		const c = planner.addCheckin('owner', h.id, { date: '2026-01-06' });
+
+		expect(planner.removeCheckin('claude', h.id, '2026-01-06')).toEqual(c);
+		expect(planner.checkinOn(h.id, '2026-01-06')).toBeNull();
+		expect(planner.changeLog().at(-1)).toMatchObject({ action: 'checkin.delete', actor: 'claude' });
+		expect(() => planner.removeCheckin('claude', h.id, '2026-01-06')).toThrow(/no check-in/i);
+		planner.restoreItem('owner', 'checkin', c.id);
+		expect(planner.checkinOn(h.id, '2026-01-06')).not.toBeNull();
+	});
+});

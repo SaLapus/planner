@@ -24,7 +24,7 @@ export function saveEvent(planner: Planner, actor: Actor, id: number, form: Form
 	if (scope === 'this') {
 		if (startChanged) changed.start = input.start;
 		if (endChanged) changed.end = input.end;
-		return planner.updateOccurrence(actor, id, occ, changed);
+		return planner.updateEventScoped(actor, id, { recurrenceId: occ, scope: 'this' }, changed);
 	}
 
 	if (input.recurrence !== undefined && input.recurrence !== series.recurrence) {
@@ -37,7 +37,7 @@ export function saveEvent(planner: Planner, actor: Actor, id: number, form: Form
 	if (scope === 'following') {
 		if (startChanged || flipped) changed.start = input.start;
 		if (endChanged || flipped) changed.end = input.end;
-		return planner.updateFollowing(actor, id, occ, changed);
+		return planner.updateEventScoped(actor, id, { recurrenceId: occ, scope: 'following' }, changed);
 	}
 
 	// Whole series: the form shows one occurrence, so a changed time is a SHIFT to apply to the
@@ -55,5 +55,5 @@ export function saveEvent(planner: Planner, actor: Actor, id: number, form: Form
 		changed.start = text(first);
 		changed.end = text(first.add(length));
 	}
-	return planner.updateEvent(actor, id, changed);
+	return planner.updateEventScoped(actor, id, { scope: 'all' }, changed);
 }

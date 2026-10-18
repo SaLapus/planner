@@ -54,7 +54,8 @@ export interface Planner
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
-	const habits = habitModule(ctx);
+	const safety = safetyModule(ctx);
+	const habits = habitModule(ctx, safety);
 	const goals = goalModule(ctx, habits);
 	const tasks = taskModule(ctx);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
@@ -70,6 +71,6 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
 		...feedModule(ctx, events, tasks),
-		...safetyModule(ctx)
+		...safety
 	};
 }

@@ -284,3 +284,32 @@ describe('recurring Events: Trash and undo', () => {
 		expect(planner.getEvent(series.id).recurrence).toMatch(/UNTIL/);
 	});
 });
+
+describe('recurring Events: updateEventScoped (one command for this / following / all)', () => {
+	it('dispatches to the occurrence, the split or the whole series', () => {
+		const { planner, series } = setup('FREQ=DAILY');
+		planner.updateEventScoped('owner', series.id, { recurrenceId: '2026-03-26T09:00' }, { title: 'one' });
+		expect(planner.getEvent(series.id).overrides['2026-03-26T09:00']).toMatchObject({ title: 'one' });
+
+		const tail = planner.updateEventScoped(
+			'owner',
+			series.id,
+			{ recurrenceId: '2026-03-28T09:00', scope: 'following' },
+			{ title: 'B' }
+		);
+		expect(tail.id).not.toBe(series.id);
+
+		const whole = planner.updateEventScoped('owner', series.id, { scope: 'all' }, { location: 'Парк' });
+		expect(whole).toMatchObject({ id: series.id, location: 'Парк' });
+	});
+
+	it('refuses inconsistent scopes and fields a single occurrence cannot change', () => {
+		const { planner, series } = setup('FREQ=DAILY');
+		const upd = (target: { recurrenceId?: string; scope?: 'this' | 'following' | 'all' }, patch = { title: 'x' } as object) =>
+			planner.updateEventScoped('owner', series.id, target, patch);
+		expect(() => upd({ scope: 'this' })).toThrow(/needs a recurrenceId/);
+		expect(() => upd({ scope: 'following' })).toThrow(/needs a recurrenceId/);
+		expect(() => upd({ recurrenceId: '2026-03-26T09:00', scope: 'all' })).toThrow(/whole series/);
+		expect(() => upd({ recurrenceId: '2026-03-26T09:00' }, { timeZone: 'UTC' })).toThrow(/single occurrence/);
+	});
+});

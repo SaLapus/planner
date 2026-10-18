@@ -99,6 +99,18 @@ export interface EventApi {
 	getEvent(id: number): Event;
 	/** One occurrence of a recurring Event as an agenda item. Throws if the rule does not produce it or it is cancelled. */
 	getOccurrence(id: number, recurrenceId: string): EventAgendaItem;
+	/**
+	 * One command for every kind of Event edit (what the MCP tool and the UI form need). With no `recurrenceId`
+	 * (scope "all", the default): `updateEvent`, the whole series. With a `recurrenceId` and scope "this" (the
+	 * default): `updateOccurrence`; only title, notes, location, start and end can change then. With scope
+	 * "following": `updateFollowing`, returning the NEW series. Inconsistent combinations throw.
+	 */
+	updateEventScoped(
+		actor: Actor,
+		id: number,
+		target: { recurrenceId?: string; scope?: 'this' | 'following' | 'all' },
+		patch: Partial<EventInput>
+	): Event;
 	/** Change one occurrence only. Moving it (start/end) is allowed; `end` defaults to keeping the duration. */
 	updateOccurrence(actor: Actor, id: number, recurrenceId: string, patch: OccurrencePatch): Event;
 	/** Skip one occurrence. Undo of the change brings it back. */
@@ -516,6 +528,25 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 	}
 
 	return {
+		updateEventScoped(actor, id, { recurrenceId, scope }, patch) {
+			if (recurrenceId === undefined) {
+				if (scope === 'this' || scope === 'following') {
+					throw new Error(`scope "${scope}" needs a recurrenceId (from get_agenda)`);
+				}
+				return this.updateEvent(actor, id, patch);
+			}
+			if (scope === 'all') {
+				throw new Error('scope "all" changes the whole series: leave recurrenceId out');
+			}
+			if (scope === 'following') return this.updateFollowing(actor, id, recurrenceId, patch);
+			const unsupported = (['allDay', 'timeZone', 'recurrence'] as const).filter((k) => patch[k] !== undefined);
+			if (unsupported.length) {
+				throw new Error(
+					`Cannot change ${unsupported.join(', ')} of a single occurrence; use scope "following" or "all"`
+				);
+			}
+			return this.updateOccurrence(actor, id, recurrenceId, patch);
+		},
 		createEvent(actor, input) {
 			const cols = columns(input);
 			return atomically(() => {

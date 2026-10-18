@@ -15,6 +15,7 @@
  * wiped by it.
  */
 import type { Actor, CoreContext } from './context.js';
+import type { SafetyApi } from './safety.js';
 
 export type HabitSchedule =
 	| { type: 'per_week'; count: number }
@@ -74,6 +75,11 @@ export interface HabitApi {
 
 	/** `date` is a local date, or an instant (ISO with Z/offset) converted to the Home zone; default: today. */
 	addCheckin(actor: Actor, habitId: number, input: { date?: string }): Checkin;
+	/**
+	 * Removes the Check-in of a Habit on a local date (default today) by moving it to Trash (the generic
+	 * delete, so it can be restored or undone). Returns it; throws if there is none.
+	 */
+	removeCheckin(actor: Actor, habitId: number, date?: string): Checkin;
 	/** The active Check-in of a Habit on a local date (default today), or null. Delete it with `deleteItem(actor, 'checkin', id)`. */
 	checkinOn(habitId: number, date?: string): Checkin | null;
 	/** Local dates (sorted) with a Check-in for the Habit, between `from` and `to` inclusive. */
@@ -176,7 +182,7 @@ export const habitCreatedOn = (habit: Habit, homeTimeZone: string): string =>
 export const habitExistedBy = (habit: Habit, periodEnd: string, homeTimeZone: string): boolean =>
 	periodEnd >= habitCreatedOn(habit, homeTimeZone);
 
-export function habitModule(ctx: CoreContext): HabitApi {
+export function habitModule(ctx: CoreContext, safety: Pick<SafetyApi, 'deleteItem'>): HabitApi {
 	const { db, nowIso, atomically, record, entities, homeTimeZone } = ctx;
 
 	const today = () => Temporal.Instant.from(nowIso()).toZonedDateTimeISO(homeTimeZone).toPlainDate();
@@ -347,6 +353,13 @@ export function habitModule(ctx: CoreContext): HabitApi {
 		};
 	}
 
+	function checkinOn(habitId: number, date?: string): Checkin | null {
+		const row = db
+			.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? AND date = ?')
+			.get(habitId, localDate(date).toString()) as CheckinRow | undefined;
+		return row ? toCheckin(row) : null;
+	}
+
 	return {
 		createHabit(actor, input) {
 			const title = cleanTitle(input.title);
@@ -400,11 +413,12 @@ export function habitModule(ctx: CoreContext): HabitApi {
 				return checkin;
 			});
 		},
-		checkinOn(habitId, date) {
-			const row = db
-				.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? AND date = ?')
-				.get(habitId, localDate(date).toString()) as CheckinRow | undefined;
-			return row ? toCheckin(row) : null;
+		checkinOn,
+		removeCheckin(actor, habitId, date) {
+			const checkin = checkinOn(habitId, date);
+			if (!checkin) throw new Error(`Habit ${habitId} has no check-in on ${date ?? 'today'}`);
+			safety.deleteItem(actor, 'checkin', checkin.id);
+			return checkin;
 		},
 
 		listCheckinDates(habitId, { from, to }) {

@@ -57,27 +57,9 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 					.describe(`${RECURRENCE_HELP} null makes a recurring Event one-off.`)
 			})
 		},
-		reply(({ id, recurrenceId, scope, ...patch }) => {
-			if (recurrenceId === undefined) {
-				if (scope === 'this' || scope === 'following') {
-					throw new Error(`scope "${scope}" needs a recurrenceId (from get_agenda)`);
-				}
-				return planner.updateEvent(actor, id, patch);
-			}
-			if (scope === 'all') {
-				throw new Error('scope "all" changes the whole series: leave recurrenceId out');
-			}
-			if (scope === 'following') return planner.updateFollowing(actor, id, recurrenceId, patch);
-			const unsupported = (['allDay', 'timeZone', 'recurrence'] as const).filter(
-				(k) => patch[k] !== undefined
-			);
-			if (unsupported.length) {
-				throw new Error(
-					`Cannot change ${unsupported.join(', ')} of a single occurrence; use scope "following" or "all"`
-				);
-			}
-			return planner.updateOccurrence(actor, id, recurrenceId, patch);
-		})
+		reply(({ id, recurrenceId, scope, ...patch }) =>
+			planner.updateEventScoped(actor, id, { recurrenceId, scope }, patch)
+		)
 	);
 
 	server.registerTool(
