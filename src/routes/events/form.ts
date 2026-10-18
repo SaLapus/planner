@@ -6,6 +6,9 @@ import { HOME_TIME_ZONE } from '#lib/server/planner.js';
 export function readEventForm(form: FormData): EventInput {
 	const text = (name: string) => String(form.get(name) ?? '').trim();
 	const end = text('end');
+	// The recurrence editor posts the rule, or an empty string for "does not repeat". A form
+	// without the field (editing a single occurrence) leaves the rule alone.
+	const recurrence = form.has('recurrence') ? text('recurrence') || null : undefined;
 	return {
 		title: text('title'),
 		notes: String(form.get('notes') ?? ''),
@@ -13,7 +16,8 @@ export function readEventForm(form: FormData): EventInput {
 		allDay: form.get('allDay') === 'on',
 		timeZone: text('timeZone') || HOME_TIME_ZONE,
 		start: text('start'),
-		end: end || undefined
+		end: end || undefined,
+		recurrence
 	};
 }
 

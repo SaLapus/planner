@@ -7,13 +7,13 @@
 </script>
 
 <ul>
-	<!-- The key must be unique across Events AND Tasks, so it is `kind-id`, not just the id. -->
+	<!-- The key must be unique across Events AND Tasks, and across the occurrences of a repeating Event. -->
 	{#each rows as e (e.key)}
 		<li class:task={e.kind === 'task'}>
 			<a href={e.href}>
 				<span class="when">
 					{#if e.kind === 'task'}<span class="tag">{e.timeBlock ? 'Задача · блок' : 'Задача'}</span>{/if}
-					{e.when}
+					{e.when}{#if e.repeats} ↻{/if}
 				</span>
 				<span class="title">{e.title}</span>
 				{#if e.location}<span class="meta">{e.location}</span>{/if}

@@ -28,7 +28,7 @@ import { statsModule, type StatsApi } from './stats.js';
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList, TimeBlock, TimeBlockInput } from './tasks.js';
 export type { Project, TagCount } from './organising.js';
-export type { Event, EventInput, EventAgendaItem } from './events.js';
+export type { Event, EventInput, EventAgendaItem, OccurrenceOverride, OccurrencePatch } from './events.js';
 export type { AgendaItem, TaskAgendaItem } from './agenda.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
