@@ -2,7 +2,7 @@
 // server before showing the page, and `actions` receive <form> posts.
 // This file only translates form data into core calls; all rules live in the core.
 import { fail } from '@sveltejs/kit';
-import { getPlanner } from '#lib/server/planner.js';
+import { getPlanner, HOME_TIME_ZONE } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
 
 // Every UI request has passed the login check in hooks.server.ts, which sets locals.actor to 'owner'.
@@ -21,6 +21,29 @@ function dueOf(form: FormData): string | null {
 	const time = String(form.get('dueTime') ?? '');
 	if (!date) return null;
 	return time ? `${date}T${time}` : date;
+}
+
+// Time block inputs (date + time + minutes) become `{ start, minutes }`. An empty date or time
+// means "no Time block", which on the edit form clears an existing one.
+function blockOf(form: FormData) {
+	const date = String(form.get('blockDate') ?? '');
+	const time = String(form.get('blockTime') ?? '');
+	if (!date || !time) return null;
+	return { start: `${date}T${time}`, minutes: Number(form.get('blockMinutes') ?? 60) };
+}
+
+// The block as the form shows it: Home-zone date, time and minutes (the core stores a UTC instant).
+function blockFields(block: { start: string; minutes: number } | null) {
+	if (!block) return null;
+	const start = Temporal.Instant.from(block.start).toZonedDateTimeISO(HOME_TIME_ZONE);
+	const end = start.add({ minutes: block.minutes });
+	const time = (z: Temporal.ZonedDateTime) => z.toPlainTime().toString({ smallestUnit: 'minute' });
+	return {
+		date: start.toPlainDate().toString(),
+		time: time(start),
+		minutes: block.minutes,
+		label: `${start.toPlainDate().toString()} ${time(start)}–${time(end)}`
+	};
 }
 
 function priorityOf(form: FormData) {
@@ -57,7 +80,7 @@ export const load: PageServerLoad = ({ url }) => {
 		);
 	}
 	return {
-		tasks,
+		tasks: tasks.map((t) => ({ ...t, block: blockFields(t.timeBlock) })),
 		list,
 		q,
 		projects: planner.listProjects(),
@@ -97,7 +120,8 @@ export const actions: Actions = {
 			getPlanner().updateTask(actorOf(locals), Number(data.get('id')), {
 				title: String(data.get('title') ?? ''),
 				due: dueOf(data),
-				priority: priorityOf(data)
+				priority: priorityOf(data),
+				timeBlock: blockOf(data)
 			});
 		} catch (e) {
 			return fail(400, { error: errorText(e) });

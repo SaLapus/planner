@@ -82,6 +82,50 @@ const MIGRATIONS: string[] = [
 		updated_at  TEXT NOT NULL
 	);
 	`,
+	// Habits and Check-ins (#12). Deleting is handled by the generic Trash (rows are removed, snapshot kept in `trash`).
+	`
+	CREATE TABLE habit (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		title       TEXT NOT NULL,
+		schedule    TEXT NOT NULL,
+		archived_at TEXT,
+		created_at  TEXT NOT NULL
+	);
+	CREATE TABLE habit_checkin (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		habit_id   INTEGER NOT NULL REFERENCES habit(id),
+		date       TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		UNIQUE (habit_id, date)
+	);
+	`,
+	// Time block on a Task (ticket #9): start as a UTC instant plus a duration in minutes.
+	`
+	ALTER TABLE task ADD COLUMN block_start TEXT;
+	ALTER TABLE task ADD COLUMN block_minutes INTEGER;
+	`,
+	// Goals and Milestones (#13). Links are plain id columns (no FOREIGN KEY): a link to a Goal/Milestone that is in
+	// Trash just stays in the row, dormant, and works again when the target is restored.
+	`
+	CREATE TABLE goal (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		title       TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		status      TEXT NOT NULL DEFAULT 'active',
+		target_date TEXT,
+		created_at  TEXT NOT NULL
+	);
+	CREATE TABLE milestone (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		goal_id     INTEGER NOT NULL,
+		title       TEXT NOT NULL,
+		target_date TEXT,
+		done        INTEGER NOT NULL DEFAULT 0,
+		position    INTEGER NOT NULL
+	);
+	ALTER TABLE task ADD COLUMN milestone_id INTEGER;
+	ALTER TABLE habit ADD COLUMN goal_id INTEGER;
+	`,
 	// Recurring Events (ticket #10): per-occurrence changes (cancellations, edits) as JSON keyed by recurrenceId.
 	`
 	ALTER TABLE event ADD COLUMN overrides TEXT NOT NULL DEFAULT '{}';

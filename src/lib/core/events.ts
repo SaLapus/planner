@@ -66,7 +66,7 @@ export interface OccurrenceOverride {
  * without changing the shape of the result. For a recurring Event each occurrence is one item:
  * `id` is the series, `recurrenceId` the occurrence, start/end the occurrence's own times.
  */
-export type AgendaItem = Omit<Event, 'overrides'> & { kind: 'event'; recurrenceId: string | null };
+export type EventAgendaItem = Omit<Event, 'overrides'> & { kind: 'event'; recurrenceId: string | null };
 
 export interface EventInput {
 	title: string;
@@ -99,7 +99,7 @@ export interface EventApi {
 	updateEvent(actor: Actor, id: number, patch: Partial<EventInput>): Event;
 	getEvent(id: number): Event;
 	/** One occurrence of a recurring Event as an agenda item. Throws if the rule does not produce it or it is cancelled. */
-	getOccurrence(id: number, recurrenceId: string): AgendaItem;
+	getOccurrence(id: number, recurrenceId: string): EventAgendaItem;
 	/** Change one occurrence only. Moving it (start/end) is allowed; `end` defaults to keeping the duration. */
 	updateOccurrence(actor: Actor, id: number, recurrenceId: string, patch: OccurrencePatch): Event;
 	/** Skip one occurrence. Undo of the change brings it back. */
@@ -118,7 +118,7 @@ export interface EventApi {
 	 * day); a datetime with Z/offset is an instant; a datetime without offset is Home wall clock
 	 * (and `to` is then exclusive).
 	 */
-	agenda(from: string, to: string): AgendaItem[];
+	agenda(from: string, to: string): EventAgendaItem[];
 	/** Today's local date in the Home zone ("YYYY-MM-DD"). */
 	today(): string;
 }
@@ -313,7 +313,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 
 	// ---- recurrence helpers ----
 
-	const item = (e: Event, recurrenceId: string | null): AgendaItem => {
+	const item = (e: Event, recurrenceId: string | null): EventAgendaItem => {
 		const { overrides: _overrides, ...rest } = e;
 		return { kind: 'event', ...rest, recurrenceId };
 	};
@@ -347,7 +347,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 	}
 
 	/** The occurrence as an agenda item, with its override applied. Does not check the rule. */
-	function occurrenceItem(e: Event, rid: string): AgendaItem {
+	function occurrenceItem(e: Event, rid: string): EventAgendaItem {
 		const o = e.overrides[rid] ?? {};
 		let start: string;
 		let end: string;
@@ -383,7 +383,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 	}
 
 	/** Occurrences that might overlap [lo, hi): a generous superset; the caller filters by overlap. */
-	function expand(e: Event, lo: number, hi: number): AgendaItem[] {
+	function expand(e: Event, lo: number, hi: number): EventAgendaItem[] {
 		const len = e.allDay
 			? (Temporal.PlainDate.from(e.start).until(Temporal.PlainDate.from(e.end)).days + 1) * DAY_MS
 			: Temporal.Instant.from(e.end).epochMilliseconds - Temporal.Instant.from(e.start).epochMilliseconds;
@@ -397,7 +397,7 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 	}
 
 	/** End for a moved start that keeps the occurrence's length. */
-	function shiftedEnd(base: AgendaItem, newStart: string): string {
+	function shiftedEnd(base: EventAgendaItem, newStart: string): string {
 		if (base.allDay) {
 			const days = Temporal.PlainDate.from(base.start).until(Temporal.PlainDate.from(base.end)).days;
 			return parseDate(newStart).add({ days }).toString();

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createTestPlanner } from '#lib/core/testing/harness.js';
 import { saveEvent } from './save.js';
+import type { EventAgendaItem, Planner } from '#lib/core/index.js';
+
+const evs = (p: Planner, from: string, to: string) =>
+	p.agenda(from, to).filter((i): i is EventAgendaItem => i.kind === 'event');
 
 /** What the browser posts for the edit form of a daily 09:00-10:00 Kyiv Event. */
 function post(fields: Record<string, string>) {
@@ -29,7 +33,7 @@ function setup() {
 		recurrence: 'FREQ=DAILY'
 	});
 	const titles = () =>
-		t.planner.agenda('2026-03-26', '2026-03-28').map((i) => `${i.title}@${i.startLocal.slice(5)}`);
+		evs(t.planner, '2026-03-26', '2026-03-28').map((i) => `${i.title}@${i.startLocal.slice(5)}`);
 	return { ...t, series, titles };
 }
 

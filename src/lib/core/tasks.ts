@@ -12,6 +12,19 @@ export type TaskList = 'today' | 'upcoming' | 'overdue' | 'inbox';
  */
 export type DueInput = string | null;
 
+/** Optional Time block: the Task is planned to occupy [start, start + minutes). */
+export interface TimeBlock {
+	/** UTC instant, e.g. "2026-03-30T07:00:00Z". */
+	start: string;
+	minutes: number;
+}
+
+/**
+ * Time block input: `start` is a datetime, either Home wall-clock ("2026-03-30T10:00") or with
+ * Z/offset; `minutes` is a whole number of minutes, 1..1440. `null` clears the block.
+ */
+export type TimeBlockInput = { start: string; minutes: number } | null;
+
 export interface Task {
 	id: number;
 	title: string;
@@ -22,12 +35,16 @@ export interface Task {
 	/** Home-zone wall-clock time (HH:MM); only set together with dueDate. */
 	dueTime: string | null;
 	priority: Priority;
+	/** Planned slot in the day (0..1). Independent of the due date. */
+	timeBlock: TimeBlock | null;
 	/** Project this Task belongs to (0..1). Managed by organising.ts. */
 	projectId: number | null;
 	/** Free-form tags, sorted. Managed by organising.ts. */
 	tags: string[];
 	/** One-level checklist, in order. Managed by organising.ts. */
 	subtasks: Subtask[];
+	/** Milestone this Task moves forward (0..1). Managed by goals.ts; dormant while the Milestone is in Trash. */
+	milestoneId: number | null;
 }
 
 export interface Subtask {
@@ -49,6 +66,7 @@ export interface TaskApi {
 			title: string;
 			due?: DueInput;
 			priority?: Priority;
+			timeBlock?: TimeBlockInput;
 			projectId?: number | null;
 			tags?: string[];
 		}
@@ -56,7 +74,7 @@ export interface TaskApi {
 	updateTask(
 		actor: Actor,
 		id: number,
-		changes: { title?: string; due?: DueInput; priority?: Priority }
+		changes: { title?: string; due?: DueInput; priority?: Priority; timeBlock?: TimeBlockInput }
 	): Task;
 	getTask(id: number): Task;
 	completeTask(actor: Actor, id: number): Task;
@@ -82,6 +100,9 @@ interface TaskRow {
 	due_time: string | null;
 	priority: Priority;
 	project_id: number | null;
+	block_start: string | null;
+	block_minutes: number | null;
+	milestone_id: number | null;
 }
 
 /** Reads a Task with its project, tags and subtasks. Shared with organising.ts. */
@@ -106,10 +127,33 @@ function toTask(db: DatabaseSync, r: TaskRow): Task {
 		dueDate: r.due_date,
 		dueTime: r.due_time,
 		priority: r.priority,
+		timeBlock: r.block_start === null ? null : { start: r.block_start, minutes: r.block_minutes! },
 		projectId: r.project_id,
 		tags: tags.map((t) => t.tag),
-		subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done === 1 }))
+		subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done === 1 })),
+		milestoneId: r.milestone_id
 	};
+}
+
+/** Validates a Time block and normalises its start to a UTC instant. Native Temporal. */
+function parseTimeBlock(input: { start: string; minutes: number }, homeTimeZone: string): TimeBlock {
+	const bad = () =>
+		new Error(
+			`Invalid time block (start "${input.start}", ${input.minutes} min): use a datetime like 2026-03-30T10:00 and 1..1440 whole minutes`
+		);
+	if (!Number.isInteger(input.minutes) || input.minutes < 1 || input.minutes > 1440) throw bad();
+	const s = input.start.trim();
+	if (!/^\d{4}-\d{2}-\d{2}T/.test(s)) throw bad();
+	try {
+		const instant = /(Z|[+-]\d{2}(:?\d{2})?)$/i.test(s)
+			? Temporal.Instant.from(s)
+			: Temporal.PlainDateTime.from(s, { overflow: 'reject' })
+					.toZonedDateTime(homeTimeZone)
+					.toInstant();
+		return { start: instant.toString(), minutes: input.minutes };
+	} catch {
+		throw bad();
+	}
 }
 
 const PRIORITY_RANK: Record<Priority, number> = { none: 0, low: 1, medium: 2, high: 3 };
@@ -171,9 +215,21 @@ export function taskModule({
 			}
 			db.prepare(
 				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-			).run(t.id, t.title, t.completedAt, t.createdAt, t.dueDate, t.dueTime, t.priority, t.projectId);
+				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			).run(
+				t.id,
+				t.title,
+				t.completedAt,
+				t.createdAt,
+				t.dueDate,
+				t.dueTime,
+				t.priority,
+				t.projectId,
+				t.timeBlock?.start ?? null,
+				t.timeBlock?.minutes ?? null,
+				t.milestoneId
+			);
 			db.prepare('DELETE FROM task_tag WHERE task_id = ?').run(t.id);
 			db.prepare('DELETE FROM subtask WHERE task_id = ?').run(t.id);
 			t.tags.forEach((tag) =>
@@ -228,14 +284,24 @@ export function taskModule({
 			if (!title) throw new Error('Task title must not be empty');
 			const due = input.due ? parseDue(input.due, homeTimeZone) : null;
 			const priority = checkPriority(input.priority ?? 'none');
+			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
 			return atomically(() => {
 				const projectId = input.projectId ?? null;
 				if (projectId !== null) assertProjectOpen(db, projectId);
 				const { lastInsertRowid } = db
 					.prepare(
-						'INSERT INTO task (title, created_at, due_date, due_time, priority, project_id) VALUES (?, ?, ?, ?, ?, ?)'
+						'INSERT INTO task (title, created_at, due_date, due_time, priority, project_id, block_start, block_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 					)
-					.run(title, nowIso(), due?.date ?? null, due?.time ?? null, priority, projectId);
+					.run(
+						title,
+						nowIso(),
+						due?.date ?? null,
+						due?.time ?? null,
+						priority,
+						projectId,
+						block?.start ?? null,
+						block?.minutes ?? null
+					);
 				for (const tag of new Set((input.tags ?? []).map(cleanTag))) {
 					db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(
 						Number(lastInsertRowid),
@@ -259,9 +325,13 @@ export function taskModule({
 					dueTime = due?.time ?? null;
 				}
 				const priority = checkPriority(changes.priority ?? before.priority);
+				const block =
+					changes.timeBlock === undefined
+						? before.timeBlock
+						: changes.timeBlock && parseTimeBlock(changes.timeBlock, homeTimeZone);
 				db.prepare(
-					'UPDATE task SET title = ?, due_date = ?, due_time = ?, priority = ? WHERE id = ?'
-				).run(title, dueDate, dueTime, priority, id);
+					'UPDATE task SET title = ?, due_date = ?, due_time = ?, priority = ?, block_start = ?, block_minutes = ? WHERE id = ?'
+				).run(title, dueDate, dueTime, priority, block?.start ?? null, block?.minutes ?? null, id);
 				const after = getTask(id);
 				record(actor, 'task.update', 'task', id, before, after);
 				return after;

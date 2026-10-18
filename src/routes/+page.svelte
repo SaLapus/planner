@@ -48,7 +48,7 @@
 
 <main>
 	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
-	<nav><a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a> · <a href="/events">Расписание</a></nav>
+	<nav><a href="/habits">Привычки</a> · <a href="/goals">Цели</a> · <a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a> · <a href="/events">Расписание</a></nav>
 	<h1>Задачи</h1>
 
 	<!-- A plain GET form: submitting it reloads the page with ?q=..., and `load` does the search. -->
@@ -106,7 +106,7 @@
 	{:else}
 		<ul>
 			{#each data.tasks as task (task.id)}
-				<li class:done={task.completedAt !== null}>
+				<li id="task-{task.id}" class:done={task.completedAt !== null}>
 					<div class="row">
 						<form method="POST" action="?/toggle" use:enhance>
 							<input type="hidden" name="id" value={task.id} />
@@ -121,6 +121,9 @@
 						<span class="title">{task.title}</span>
 						{#if task.dueDate}
 							<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
+						{/if}
+						{#if task.block}
+							<small class="block" title="Блок времени">⏱ {task.block.label}</small>
 						{/if}
 						{#if task.priority !== 'none'}
 							<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
@@ -152,6 +155,20 @@
 									<option value={key}>{label}</option>
 								{/each}
 							</select>
+							<!-- Time block: fill date and time to plan the task into the calendar; empty them to remove the block. -->
+							<fieldset class="block-fields">
+								<legend>Блок времени (в расписании)</legend>
+								<input type="date" name="blockDate" value={task.block?.date ?? ''} aria-label="Блок: дата" />
+								<input type="time" name="blockTime" value={task.block?.time ?? ''} aria-label="Блок: начало" />
+								<input
+									type="number"
+									name="blockMinutes"
+									min="1"
+									max="1440"
+									value={task.block?.minutes ?? 60}
+									aria-label="Блок: минут"
+								/> мин
+							</fieldset>
 							<button>Сохранить</button>
 						</form>
 
@@ -265,6 +282,17 @@
 	}
 	.due {
 		color: #555;
+	}
+	.block {
+		color: #2e7d32;
+	}
+	.block-fields {
+		border: 1px solid #ccc;
+		border-radius: 0.5rem;
+		width: 100%;
+	}
+	.block-fields input[type='number'] {
+		width: 5rem;
 	}
 	.prio {
 		padding: 0 0.4rem;
