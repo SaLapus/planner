@@ -18,7 +18,7 @@ import { taskModule, type TaskApi } from './tasks.js';
 import { changeLogModule, type ChangeLogQueries } from './changelog.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
-export type { Task } from './tasks.js';
+export type { Task, Priority, TaskList } from './tasks.js';
 export type { ChangeLogEntry } from './changelog.js';
 
 export interface Planner extends TaskApi, ChangeLogQueries {}
