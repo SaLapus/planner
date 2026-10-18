@@ -97,10 +97,19 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 	server.registerTool(
 		'search_tasks',
 		{
-			description: 'Find Tasks (done ones too) whose title contains the text, case-insensitive.',
-			inputSchema: z.object({ text: z.string() })
+			description:
+				'Find Tasks (done ones too), oldest first. text: the title contains it (case-insensitive; may be empty when another filter is given). Optional filters, all combined: project_id (null = no project), tag, and due_from / due_to (inclusive local dates YYYY-MM-DD on the due date; Tasks without a due date never match them). At least one of text or a filter is needed.',
+			inputSchema: z.object({
+				text: z.string().optional(),
+				project_id: z.number().int().nullable().optional(),
+				tag: z.string().optional(),
+				due_from: z.string().optional().describe('YYYY-MM-DD'),
+				due_to: z.string().optional().describe('YYYY-MM-DD')
+			})
 		},
-		reply(({ text }) => planner.searchTasks(text))
+		reply(({ text, project_id, tag, due_from, due_to }) =>
+			planner.searchTasks(text ?? '', { projectId: project_id, tag, dueFrom: due_from, dueTo: due_to })
+		)
 	);
 
 	server.registerTool(

@@ -94,6 +94,20 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 	);
 
 	server.registerTool(
+		'search_events',
+		{
+			description:
+				'Find calendar Events by text (title, notes or location, case-insensitive) and/or a date range. Without from/to each matching Event is returned once (a recurring one as its series, recurrenceId null). With from AND to (same formats as get_agenda: dates are Home-zone days, to inclusive) the matching occurrences inside the range are returned, recurring Events expanded, as get_agenda items. Needs text or a range.',
+			inputSchema: z.object({
+				text: z.string().optional(),
+				from: z.string().optional().describe('Range start: date or datetime (give together with to)'),
+				to: z.string().optional().describe('Range end: date (inclusive) or datetime (exclusive)')
+			})
+		},
+		reply((input) => planner.searchEvents(input))
+	);
+
+	server.registerTool(
 		'get_agenda',
 		{
 			description:

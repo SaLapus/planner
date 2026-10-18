@@ -151,4 +151,21 @@ describe('text search', () => {
 		expect(titles(planner.searchTasks('MILK'))).toEqual(['Buy milk']);
 		expect(planner.searchTasks('   ')).toEqual([]);
 	});
+
+	it('searchTasks narrows by project, tag and due-date range (inclusive), with or without text', () => {
+		const { planner } = createTestPlanner();
+		const home = planner.createProject('owner', { name: 'Дом' });
+		const a = planner.createTask('owner', { title: 'Купить молоко', due: '2026-03-10', projectId: home.id, tags: ['магазин'] });
+		const b = planner.createTask('owner', { title: 'Купить хлеб', due: '2026-03-20', projectId: home.id });
+		const c = planner.createTask('owner', { title: 'Купить билеты', due: '2026-03-12', tags: ['магазин'] });
+		planner.createTask('owner', { title: 'Без даты', projectId: home.id });
+		const ids = (ts: { id: number }[]) => ts.map((t) => t.id);
+
+		expect(ids(planner.searchTasks('купить', { projectId: home.id }))).toEqual([a.id, b.id]);
+		expect(ids(planner.searchTasks('купить', { tag: 'магазин' }))).toEqual([a.id, c.id]);
+		expect(ids(planner.searchTasks('купить', { dueFrom: '2026-03-11', dueTo: '2026-03-20' }))).toEqual([b.id, c.id]);
+		expect(ids(planner.searchTasks('', { dueFrom: '2026-03-12' }))).toEqual([b.id, c.id]);
+		expect(ids(planner.searchTasks('купить', { projectId: home.id, tag: 'магазин', dueTo: '2026-03-10' }))).toEqual([a.id]);
+		expect(() => planner.searchTasks('x', { dueFrom: 'вчера' })).toThrow(/date/i);
+	});
 });

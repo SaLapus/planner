@@ -111,6 +111,11 @@ export interface EventApi {
 	 */
 	updateFollowing(actor: Actor, id: number, recurrenceId: string, patch: Partial<EventInput>): Event;
 	/**
+	 * Events whose title, notes or location contain `text` (case-insensitive). Without a range: each matching Event
+	 * once (a recurring one as its series, `recurrenceId` null). With `from` and `to` (both; same formats as `agenda`): the matching occurrences overlapping that range, recurring Events expanded. Needs text or a range.
+	 */
+	searchEvents(opts: { text?: string; from?: string; to?: string }): EventAgendaItem[];
+	/**
 	 * Everything overlapping [from, to), ordered by start, recurring Events expanded into their
 	 * occurrences. `from`/`to` are ISO strings: date-only
 	 * means a local Home date (`to` as a date is INCLUSIVE, so from=to="2026-01-05" is that whole
@@ -622,7 +627,24 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				return tail;
 			});
 		},
-		agenda(from, to) {
+		agenda,
+		searchEvents({ text = '', from, to }) {
+			const needle = text.trim().toLowerCase();
+			if (!needle && from === undefined && to === undefined) return [];
+			const matches = (e: Pick<Event, 'title' | 'notes' | 'location'>) =>
+				!needle || [e.title, e.notes, e.location].some((f) => f.toLowerCase().includes(needle));
+			if (from === undefined && to === undefined) {
+				const rows = db.prepare('SELECT * FROM event ORDER BY start_at, start_date, id').all() as unknown as EventRow[];
+				return rows.map(toEvent).filter(matches).map((e) => item(e, null));
+			}
+			if (from === undefined || to === undefined) throw new Error('Give both from and to for a date range');
+			return agenda(from, to).filter(matches);
+		},
+		today: () =>
+			clock.now().toTemporalInstant().toZonedDateTimeISO(homeTimeZone).toPlainDate().toString()
+	};
+	function agenda(from: string, to: string): EventAgendaItem[] {
+		{
 			const lo = DATE_ONLY.test(from)
 				? dayStart(parseDate(from), homeTimeZone)
 				: parseInstant(from, homeTimeZone).epochMilliseconds;
@@ -640,8 +662,6 @@ export function eventModule({ db, nowIso, atomically, record, homeTimeZone, cloc
 				.filter(({ span: [s, en] }) => s < hi && (en > lo || (en === s && s >= lo)))
 				.sort((a, b) => a.span[0] - b.span[0] || a.e.id - b.e.id)
 				.map(({ e }) => e);
-		},
-		today: () =>
-			clock.now().toTemporalInstant().toZonedDateTimeISO(homeTimeZone).toPlainDate().toString()
-	};
+		}
+	}
 }

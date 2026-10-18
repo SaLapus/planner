@@ -134,3 +134,30 @@ describe('recurring Event tools', () => {
 		expect(bad.isError).toBe(true);
 	});
 });
+
+describe('search tools', () => {
+	it('search_events filters by text and date range; search_tasks by project, tag and due range', async () => {
+		const t = createTestConnector();
+		const claude = await t.connectClaude();
+		const call = async <T>(name: string, args: Record<string, unknown>) =>
+			toolJson<T>(await claude.callTool({ name, arguments: args }));
+		await call('create_event', { title: 'Врач', start: '2026-03-10T10:00' });
+		await call('create_event', { title: 'Врач повторно', start: '2026-04-10T10:00' });
+		const project = t.planner.createProject('owner', { name: 'Дом' });
+		await call('create_task', { title: 'Купить молоко', due: '2026-03-10', project_id: project.id, tags: ['магазин'] });
+		await call('create_task', { title: 'Купить хлеб', due: '2026-04-10' });
+
+		const events = await call<Item[]>('search_events', { text: 'врач', from: '2026-03-01', to: '2026-03-31' });
+		expect(events.map((e) => e.title)).toEqual(['Врач']);
+		expect((await call<Item[]>('search_events', { text: 'врач' })).map((e) => e.title)).toEqual(['Врач', 'Врач повторно']);
+
+		type T = { title: string };
+		const byProject = await call<T[]>('search_tasks', { text: 'купить', project_id: project.id });
+		expect(byProject.map((x) => x.title)).toEqual(['Купить молоко']);
+		expect((await call<T[]>('search_tasks', { tag: 'магазин' })).map((x) => x.title)).toEqual(['Купить молоко']);
+		expect((await call<T[]>('search_tasks', { due_from: '2026-04-01', due_to: '2026-04-30' })).map((x) => x.title)).toEqual([
+			'Купить хлеб'
+		]);
+		expect((await call<T[]>('search_tasks', { text: 'купить' })).length).toBe(2);
+	});
+});
