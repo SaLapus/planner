@@ -25,6 +25,7 @@ import { goalModule, type GoalApi } from './goals.js';
 import { agendaModule, type AgendaApi } from './agenda.js';
 import { reviewModule, type ReviewApi } from './reviews.js';
 import { statsModule, type StatsApi } from './stats.js';
+import { feedModule, type FeedApi } from './feed.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList, TimeBlock, TimeBlockInput } from './tasks.js';
@@ -46,6 +47,7 @@ export interface Planner
 		GoalApi,
 		ReviewApi,
 		StatsApi,
+		FeedApi,
 		ChangeLogQueries,
 		SafetyApi {}
 
@@ -54,9 +56,10 @@ export function createPlanner(deps: PlannerDeps): Planner {
 	const ctx = createContext(deps);
 	const habits = habitModule(ctx);
 	const goals = goalModule(ctx, habits);
+	const tasks = taskModule(ctx);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
 	return {
-		...taskModule(ctx),
+		...tasks,
 		...organisingModule(ctx),
 		...events,
 		// The merged agenda: Events (their own source) plus Tasks. See agenda.ts.
@@ -66,6 +69,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...reviewModule(ctx, habits, goals),
 		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
+		...feedModule(ctx, events, tasks),
 		...safetyModule(ctx)
 	};
 }

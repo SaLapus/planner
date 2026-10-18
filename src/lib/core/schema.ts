@@ -147,6 +147,14 @@ const MIGRATIONS: string[] = [
 	`
 	ALTER TABLE task ADD COLUMN repeat TEXT;
 	ALTER TABLE task ADD COLUMN next_id INTEGER;
+	`,
+	// Calendar feed secret (ticket #15): one row; the value is random from the start (no "unset" state).
+	`
+	CREATE TABLE feed_secret (
+		id     INTEGER PRIMARY KEY CHECK (id = 1),
+		secret TEXT NOT NULL
+	);
+	INSERT INTO feed_secret (id, secret) VALUES (1, lower(hex(randomblob(32))));
 	`
 ];
 

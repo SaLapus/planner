@@ -3,9 +3,14 @@
 // request continues (and as which Actor) or is answered right here (redirect to login, 401).
 import type { Handle } from '@sveltejs/kit/hooks';
 import { getAuth } from '#lib/server/auth/instance.js';
+import { isFeedPath } from '#lib/server/feed.js';
 import { getConnector } from '#lib/server/connector/instance.js';
 
 export const handle: Handle = async ({ event, resolve }) => {
+	// The Calendar feed has no login: calendar apps cannot sign in. Its secret URL is the protection,
+	// and the route answers 404 to anything else.
+	if (isFeedPath(event.url.pathname)) return resolve(event);
+
 	// The Claude connector (/mcp, /oauth/*, /.well-known/*) does its own authentication
 	// (bearer tokens; the authorize step checks the owner session itself), so it goes first.
 	const connectorResponse = await getConnector().handle(event.request);
