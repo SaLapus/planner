@@ -77,7 +77,39 @@ export function cleanTag(tag: string): string {
 	return t;
 }
 
-export function organisingModule({ db, nowIso, atomically, record }: CoreContext): OrganisingApi {
+export function organisingModule({
+	db,
+	nowIso,
+	atomically,
+	record,
+	entities
+}: CoreContext): OrganisingApi {
+	// Makes Projects trashable and undoable. Trashing a Project that still has Tasks is REFUSED
+	// (the Tasks must be moved or deleted first), so no Task is ever left pointing at a missing
+	// Project. Restoring a Task whose Project is in Trash is refused the same way (see tasks.ts).
+	entities.register<Project>({
+		type: 'project',
+		read: (id) => {
+			const row = db.prepare('SELECT * FROM project WHERE id = ?').get(id) as ProjectRow | undefined;
+			return row ? toProject(row) : null;
+		},
+		write: (p) => {
+			db.prepare(
+				'INSERT OR REPLACE INTO project (id, name, archived_at, created_at) VALUES (?, ?, ?, ?)'
+			).run(p.id, p.name, p.archivedAt, p.createdAt);
+		},
+		remove: (id) => {
+			const { n } = db.prepare('SELECT COUNT(*) AS n FROM task WHERE project_id = ?').get(id) as {
+				n: number;
+			};
+			if (n > 0) {
+				throw new Error(`Project ${id} still has ${n} task(s); move or delete them first`);
+			}
+			db.prepare('DELETE FROM project WHERE id = ?').run(id);
+		},
+		label: (p) => p.name
+	});
+
 	/** Runs `mutate` on a task and logs one entry with full before/after task snapshots. */
 	function changeTask(actor: Actor, taskId: number, action: string, mutate: () => void): Task {
 		return atomically(() => {

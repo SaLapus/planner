@@ -9,6 +9,9 @@ import { openDatabase } from '#lib/core/database.js';
 
 export const HOME_TIME_ZONE = 'Europe/Istanbul';
 
+/** How often the running server empties expired items from Trash. */
+const PURGE_EVERY_MS = 60 * 60 * 1000;
+
 let instance: Planner | undefined;
 let database: DatabaseSync | undefined;
 
@@ -19,10 +22,26 @@ export function getDatabase(): DatabaseSync {
 }
 
 export function getPlanner(): Planner {
-	instance ??= createPlanner({
-		db: getDatabase(),
-		clock: { now: () => new Date() },
-		homeTimeZone: HOME_TIME_ZONE
-	});
+	if (!instance) {
+		const planner = createPlanner({
+			db: getDatabase(),
+			clock: { now: () => new Date() },
+			homeTimeZone: HOME_TIME_ZONE,
+			trashRetentionDays: 30
+		});
+		instance = planner;
+		// Purge runs inside the app: once when the planner is first built (server start, or the
+		// first request after it), then every hour. Items older than the retention (by the Clock)
+		// are removed for good. There is no cron job and nothing else to set up.
+		const purge = () => {
+			try {
+				planner.purgeTrash();
+			} catch (e) {
+				console.error('Trash purge failed', e);
+			}
+		};
+		purge();
+		setInterval(purge, PURGE_EVERY_MS).unref();
+	}
 	return instance;
 }

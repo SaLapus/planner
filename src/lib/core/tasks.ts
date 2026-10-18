@@ -149,9 +149,49 @@ export function taskModule({
 	atomically,
 	record,
 	clock,
-	homeTimeZone
+	homeTimeZone,
+	entities
 }: CoreContext): TaskApi {
 	const getTask = (id: number) => readTask(db, id);
+
+	// Makes Tasks trashable and undoable (see "How to make a new entity trashable/undoable" in README).
+	// The snapshot is the full Task: columns plus the tag and subtask rows it owns.
+	entities.register<Task>({
+		type: 'task',
+		read: (id) => {
+			const row = db.prepare('SELECT * FROM task WHERE id = ?').get(id) as TaskRow | undefined;
+			return row ? toTask(db, row) : null;
+		},
+		write: (t) => {
+			if (
+				t.projectId !== null &&
+				!db.prepare('SELECT 1 FROM project WHERE id = ?').get(t.projectId)
+			) {
+				throw new Error(`its project ${t.projectId} is in Trash or gone; restore the project first`);
+			}
+			db.prepare(
+				`INSERT OR REPLACE INTO task
+				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+			).run(t.id, t.title, t.completedAt, t.createdAt, t.dueDate, t.dueTime, t.priority, t.projectId);
+			db.prepare('DELETE FROM task_tag WHERE task_id = ?').run(t.id);
+			db.prepare('DELETE FROM subtask WHERE task_id = ?').run(t.id);
+			t.tags.forEach((tag) =>
+				db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(t.id, tag)
+			);
+			t.subtasks.forEach((s, i) =>
+				db
+					.prepare('INSERT INTO subtask (id, task_id, title, done, position) VALUES (?, ?, ?, ?, ?)')
+					.run(s.id, t.id, s.title, s.done ? 1 : 0, i)
+			);
+		},
+		remove: (id) => {
+			db.prepare('DELETE FROM task_tag WHERE task_id = ?').run(id);
+			db.prepare('DELETE FROM subtask WHERE task_id = ?').run(id);
+			db.prepare('DELETE FROM task WHERE id = ?').run(id);
+		},
+		label: (t) => t.title
+	});
 
 	const allTasks = () =>
 		(db.prepare('SELECT * FROM task ORDER BY id').all() as unknown as TaskRow[]).map((r) => toTask(db, r));

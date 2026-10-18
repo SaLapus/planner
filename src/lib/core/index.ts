@@ -17,13 +17,16 @@ import { createContext, type PlannerDeps } from './context.js';
 import { taskModule, type TaskApi } from './tasks.js';
 import { organisingModule, type OrganisingApi } from './organising.js';
 import { changeLogModule, type ChangeLogQueries } from './changelog.js';
+import { safetyModule, type SafetyApi } from './safety.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList } from './tasks.js';
 export type { Project, TagCount } from './organising.js';
 export type { ChangeLogEntry } from './changelog.js';
 
-export interface Planner extends TaskApi, OrganisingApi, ChangeLogQueries {}
+export type { TrashItem } from './safety.js';
+
+export interface Planner extends TaskApi, OrganisingApi, ChangeLogQueries, SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
@@ -31,6 +34,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 	return {
 		...taskModule(ctx),
 		...organisingModule(ctx),
-		...changeLogModule(ctx)
+		...changeLogModule(ctx),
+		...safetyModule(ctx)
 	};
 }
