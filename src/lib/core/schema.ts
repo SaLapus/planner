@@ -142,6 +142,11 @@ const MIGRATIONS: string[] = [
 		updated_at   TEXT NOT NULL,
 		UNIQUE (period_type, period_start)
 	);
+	`,
+	// Repeating Tasks (ticket #11): repetition as JSON, plus the id of the next instance created on completion.
+	`
+	ALTER TABLE task ADD COLUMN repeat TEXT;
+	ALTER TABLE task ADD COLUMN next_id INTEGER;
 	`
 ];
 

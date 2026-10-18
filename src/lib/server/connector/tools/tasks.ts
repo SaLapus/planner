@@ -18,6 +18,24 @@ const timeBlockSchema = z
 		'Time block: when the Task is planned to be worked on. Time-blocked Tasks appear in get_agenda (placement "time_block") next to Events'
 	);
 
+const repeatSchema = z
+	.discriminatedUnion('type', [
+		z.object({
+			type: z.literal('fixed'),
+			rrule: z
+				.string()
+				.describe('RFC 5545 RRULE value, e.g. "FREQ=WEEKLY;BYDAY=MO" or "FREQ=MONTHLY;INTERVAL=2;COUNT=6"')
+		}),
+		z.object({
+			type: z.literal('after'),
+			every: z.number().int().describe('How many units after completion, 1..999'),
+			unit: z.enum(['day', 'week', 'month', 'year'])
+		})
+	])
+	.describe(
+		'Repetition. "fixed" follows an RRULE counted from the due date (requires a due date); "after" schedules the next one N units after the day it is completed. Completing a repeating Task keeps it as done and creates the next instance (its id is nextId on the completed Task).'
+	);
+
 export const registerTaskTools: RegisterTools = (server, { planner, actor }) => {
 	server.registerTool(
 		'create_task',
@@ -30,17 +48,19 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				priority: prioritySchema.optional(),
 				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
-				tags: z.array(z.string()).optional().describe('Free-form tags')
+				tags: z.array(z.string()).optional().describe('Free-form tags'),
+				repeat: repeatSchema.optional()
 			})
 		},
-		reply(({ title, due, priority, time_block, project_id, tags }) =>
+		reply(({ title, due, priority, time_block, project_id, tags, repeat }) =>
 			planner.createTask(actor, {
 				title,
 				due,
 				priority,
 				timeBlock: time_block,
 				projectId: project_id,
-				tags
+				tags,
+				repeat
 			})
 		)
 	);
@@ -49,13 +69,14 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'update_task',
 		{
 			description:
-				'Change a Task\'s title, due date/time, priority or Time block. Only the fields you pass change; pass due: null to remove the due date and time_block: null to clear the Time block. Returns the updated Task.',
+				'Change a Task\'s title, due date/time, priority, Time block or repetition. Only the fields you pass change; pass due: null to remove the due date, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
 			inputSchema: z.object({
 				id: z.number().int().describe('Task id from list_tasks'),
 				title: z.string().optional(),
 				due: dueSchema.nullable().optional(),
 				priority: prioritySchema.optional(),
-				time_block: timeBlockSchema.nullable().optional()
+				time_block: timeBlockSchema.nullable().optional(),
+				repeat: repeatSchema.nullable().optional()
 			})
 		},
 		reply(({ id, time_block, ...changes }) =>
@@ -98,7 +119,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 	server.registerTool(
 		'complete_task',
 		{
-			description: 'Mark a Task as done. Fails if it is already completed.',
+			description: 'Mark a Task as done. Fails if it is already completed. A repeating Task also gets its next instance (see nextId on the returned Task).',
 			inputSchema: z.object({ id: z.number().int().describe('Task id from list_tasks') })
 		},
 		reply(({ id }) => planner.completeTask(actor, id))
@@ -107,7 +128,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 	server.registerTool(
 		'uncomplete_task',
 		{
-			description: 'Mark a completed Task as open again. Fails if it is not completed.',
+			description: 'Mark a completed Task as open again. Removes the next instance it created, and fails if that one was already changed or completed. Fails if the Task is not completed.',
 			inputSchema: z.object({ id: z.number().int().describe('Task id from list_tasks') })
 		},
 		reply(({ id }) => planner.uncompleteTask(actor, id))

@@ -125,6 +125,9 @@
 						{#if task.block}
 							<small class="block" title="Блок времени">⏱ {task.block.label}</small>
 						{/if}
+						{#if task.repeat}
+							<small class="repeat" title="Повторение">🔁 {task.repeatText}</small>
+						{/if}
 						{#if task.priority !== 'none'}
 							<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
 						{/if}
@@ -170,6 +173,34 @@
 								/> мин
 							</fieldset>
 							<button>Сохранить</button>
+						</form>
+
+						<!-- Repetition: its own form. "bind:value" is not needed; the select is read when the form is sent. -->
+						<form method="POST" action="?/setRepeat" use:enhance class="inline">
+							<input type="hidden" name="id" value={task.id} />
+							<select name="repeatKind" value={task.repeatForm.kind} aria-label="Повторение">
+								<option value="none">Не повторять</option>
+								<option value="fixed">По расписанию (от срока)</option>
+								<option value="after">После выполнения</option>
+								{#if task.repeatForm.kind === 'custom'}
+									<option value="custom">Особое правило (не менять)</option>
+								{/if}
+							</select>
+							<input
+								type="number"
+								name="repeatEvery"
+								min="1"
+								max="999"
+								value={task.repeatForm.every}
+								aria-label="Повторять: каждые"
+							/>
+							<select name="repeatUnit" value={task.repeatForm.unit} aria-label="Единица">
+								<option value="day">дней</option>
+								<option value="week">недель</option>
+								<option value="month">месяцев</option>
+								<option value="year">лет</option>
+							</select>
+							<button>Повторение</button>
 						</form>
 
 						<ul class="subtasks">
