@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
-import { readEventForm, timeZoneChoices } from '../form.js';
+import { timeZoneChoices } from '../form.js';
+import { saveEvent } from '../save.js';
 import type { Actions, PageServerLoad } from './$types';
 
 function idOf(raw: string): number {
@@ -9,9 +10,15 @@ function idOf(raw: string): number {
 	return id;
 }
 
-export const load: PageServerLoad = ({ params }) => {
+// /events/12?occ=2026-03-30T09:00 opens one occurrence of a recurring Event.
+export const load: PageServerLoad = ({ params, url }) => {
 	try {
-		return { event: getPlanner().getEvent(idOf(params.id)), zones: timeZoneChoices() };
+		const planner = getPlanner();
+		const event = planner.getEvent(idOf(params.id));
+		// For a recurring Event we always show one occurrence (the first, if none was chosen).
+		const occ = event.recurrence ? (url.searchParams.get('occ') ?? (event.allDay ? event.start : event.startLocal)) : '';
+		const shown = occ ? planner.getOccurrence(event.id, occ) : event;
+		return { event, occ, shown, zones: timeZoneChoices() };
 	} catch {
 		error(404, 'Событие не найдено');
 	}
@@ -20,12 +27,25 @@ export const load: PageServerLoad = ({ params }) => {
 export const actions: Actions = {
 	save: async ({ request, locals, params }) => {
 		if (!locals.actor) throw new Error('Not authenticated');
-		const input = readEventForm(await request.formData());
 		let day: string;
 		try {
-			day = getPlanner().updateEvent(locals.actor, idOf(params.id), input).startHome.slice(0, 10);
+			day = saveEvent(getPlanner(), locals.actor, idOf(params.id), await request.formData()).startHome.slice(0, 10);
 		} catch (e) {
-			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка', input });
+			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
+		}
+		redirect(303, `/events/day/${day}`);
+	},
+	cancelOccurrence: async ({ request, locals, params }) => {
+		if (!locals.actor) throw new Error('Not authenticated');
+		const occ = String((await request.formData()).get('occ') ?? '');
+		let day: string;
+		try {
+			const planner = getPlanner();
+			const id = idOf(params.id);
+			day = planner.getOccurrence(id, occ).startHome.slice(0, 10);
+			planner.cancelOccurrence(locals.actor, id, occ);
+		} catch (e) {
+			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
 		}
 		redirect(303, `/events/day/${day}`);
 	},

@@ -87,7 +87,7 @@ export interface EventInput {
 	recurrence?: string | null;
 }
 
-export type OccurrencePatch = Pick<EventInput, 'title' | 'notes' | 'location' | 'start' | 'end'>;
+export type OccurrencePatch = Partial<Pick<EventInput, 'title' | 'notes' | 'location' | 'start' | 'end'>>;
 
 export interface EventApi {
 	createEvent(actor: Actor, input: EventInput): Event;

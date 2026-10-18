@@ -7,10 +7,11 @@
 </script>
 
 <ul>
-	{#each rows as e (e.id)}
+	<!-- Every occurrence of a repeating Event has the same id, so the key adds the occurrence. -->
+	{#each rows as e (`${e.id}/${e.occ}`)}
 		<li>
-			<a href="/events/{e.id}">
-				<span class="when">{e.when}</span>
+			<a href={e.occ ? `/events/${e.id}?occ=${encodeURIComponent(e.occ)}` : `/events/${e.id}`}>
+				<span class="when">{e.when}{#if e.repeats} ↻{/if}</span>
 				<span class="title">{e.title}</span>
 				{#if e.location}<span class="meta">{e.location}</span>{/if}
 				{#if e.zone}<span class="meta zone">{e.zone}</span>{/if}

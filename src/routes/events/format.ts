@@ -48,6 +48,9 @@ export function zoneNote(e: AgendaItem): string {
 export function toRow(e: AgendaItem) {
 	return {
 		id: e.id,
+		/** Which occurrence (recurring Events only); the edit link carries it. */
+		occ: e.recurrenceId ?? '',
+		repeats: e.recurrence !== null,
 		title: e.title,
 		location: e.location,
 		notes: e.notes,
