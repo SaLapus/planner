@@ -242,15 +242,31 @@ describe('recurring Events: Trash and undo', () => {
 		expect(evs(planner, '2026-03-26', '2026-03-28')).toHaveLength(3);
 	});
 
-	it('undo of a split restores the original series and removes the new one', () => {
+	it('a split writes exactly one entry; one undo leaves the original series, redo splits again', () => {
 		const { planner, series } = setup('FREQ=DAILY');
+		const before = planner.changeLog().length;
 		const tail = planner.updateFollowing('owner', series.id, '2026-03-28T09:00', { title: 'B' });
 		const log = planner.changeLog();
-		planner.undoChange('owner', log.find((c) => c.entityId === tail.id && c.action === 'event.create')!.id);
-		planner.undoChange('owner', log.find((c) => c.entityId === series.id && c.action === 'event.split')!.id);
+		expect(log).toHaveLength(before + 1);
+		const undo = planner.undoChange('owner', log[log.length - 1].id);
 		expect(evs(planner, '2026-03-26', '2026-03-30').map((i) => [i.title, i.id])).toEqual(
 			[26, 27, 28, 29, 30].map(() => ['Зарядка', series.id])
 		);
 		expect(planner.getEvent(series.id).recurrence).toBe('FREQ=DAILY');
+		expect(() => planner.getEvent(tail.id)).toThrow();
+		planner.undoChange('owner', undo.id);
+		expect(planner.getEvent(tail.id).title).toBe('B');
+		expect(planner.getEvent(series.id).recurrence).toMatch(/UNTIL/);
+		expect(evs(planner, '2026-03-26', '2026-03-30')).toHaveLength(5);
+	});
+
+	it('refuses to undo a split once the new series was edited', () => {
+		const { planner, series } = setup('FREQ=DAILY');
+		const tail = planner.updateFollowing('owner', series.id, '2026-03-28T09:00', { title: 'B' });
+		const entry = planner.changeLog().at(-1)!;
+		planner.updateEvent('owner', tail.id, { title: 'C' });
+		expect(() => planner.undoChange('owner', entry.id)).toThrow(/Cannot undo|already changed/);
+		expect(planner.getEvent(tail.id).title).toBe('C');
+		expect(planner.getEvent(series.id).recurrence).toMatch(/UNTIL/);
 	});
 });

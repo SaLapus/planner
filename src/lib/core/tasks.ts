@@ -101,8 +101,8 @@ export interface TaskApi {
 	): Task;
 	getTask(id: number): Task;
 	/**
-	 * Completes a Task. A repeating Task also gets its next instance (linked as `nextId`, logged as a
-	 * separate `task.create` entry): due date from the rule (fixed: the first occurrence after both the
+	 * Completes a Task. A repeating Task also gets its next instance (linked as `nextId`; part of the one
+	 * `task.complete` entry, whose after-snapshot carries `nextId`): due date from the rule (fixed: the first occurrence after both the
 	 * due date and today) or from today (after-completion). Un-completing, or undoing the completion,
 	 * removes that next instance again, and refuses if it was already changed or completed.
 	 */
@@ -452,14 +452,12 @@ export function taskModule({
 			if (complete === (before.completedAt !== null)) {
 				throw new Error(`Task ${id} is already ${complete ? 'completed' : 'open'}`);
 			}
-			let spawned: Task | null = null;
 			let nextId: number | null = null;
 			if (complete) {
 				const done = { ...before, completedAt: nowIso() };
 				const next = nextInstanceOf(done);
 				if (next) {
-					spawned = insertNextInstance(done, next);
-					nextId = spawned.id;
+					nextId = insertNextInstance(done, next).id;
 				}
 			} else if (before.nextId !== null) {
 				dropNextInstance(before.nextId);
@@ -471,7 +469,6 @@ export function taskModule({
 			);
 			const after = getTask(id);
 			record(actor, complete ? 'task.complete' : 'task.uncomplete', 'task', id, before, after);
-			if (spawned) record(actor, 'task.create', 'task', spawned.id, null, spawned);
 			return after;
 		});
 	}

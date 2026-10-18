@@ -188,6 +188,15 @@ describe('un-completing and undo leave no duplicate', () => {
 		expect(tasks[1].dueDate).toBe('2026-04-06');
 	});
 
+	it('completing writes exactly one Change log entry and one undo reverts everything', () => {
+		const { planner, t } = setup();
+		const log = planner.changeLog();
+		expect(log.map((e) => e.action)).toEqual(['task.create', 'task.complete']);
+		planner.undoChange('owner', log[1].id);
+		expect(planner.listTasks().map((x) => x.id)).toEqual([t.id]);
+		expect(planner.getTask(t.id).nextId).toBeNull();
+	});
+
 	it('refuses to uncomplete or undo once the next instance was edited', () => {
 		const { planner, t, done } = setup();
 		const completeEntry = planner.changeLog().find((e) => e.action === 'task.complete')!;
