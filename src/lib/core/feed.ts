@@ -17,6 +17,7 @@ import { tzlib_get_ical_block } from 'timezones-ical-library';
 import type { CoreContext } from './context.js';
 import type { Event, EventApi } from './events.js';
 import { toRfcRule } from './recurrence.js';
+import type { TaskApi } from './tasks.js';
 
 export interface FeedApi {
 	/** The whole feed as iCalendar text. */
@@ -32,8 +33,9 @@ const compact = (wall: string) =>
 	Temporal.PlainDateTime.from(wall).toString({ smallestUnit: 'second' }).replace(/[-:]/g, '');
 
 export function feedModule(
-	{ db }: CoreContext,
-	{ getEvent }: Pick<EventApi, 'getEvent'>
+	{ db, homeTimeZone }: CoreContext,
+	{ getEvent }: Pick<EventApi, 'getEvent'>,
+	{ listTasks }: Pick<TaskApi, 'listTasks'>
 ): FeedApi {
 	type Calendar = ReturnType<typeof ical>;
 
@@ -109,6 +111,17 @@ export function feedModule(
 			cal.ttl(3600);
 			const ids = db.prepare('SELECT id FROM event ORDER BY id').all() as { id: number }[];
 			for (const { id } of ids) addEvent(cal, getEvent(id));
+			for (const t of listTasks()) {
+				if (t.completedAt || !t.timeBlock) continue;
+				const start = inZone(t.timeBlock.start, homeTimeZone);
+				cal.createEvent({
+					id: `task-${t.id}@planner`,
+					summary: `[Задача] ${t.title}`,
+					timezone: homeTimeZone,
+					start,
+					end: start.add({ minutes: t.timeBlock.minutes })
+				});
+			}
 			// ical-generator has no date-only RECURRENCE-ID: it prints midnight UTC. The id must have the
 			// same form as DTSTART (a date), or calendar apps cannot match the override to its occurrence.
 			// Timed overrides always carry TZID, so only all-day ones match this pattern.

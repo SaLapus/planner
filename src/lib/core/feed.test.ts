@@ -82,6 +82,38 @@ describe('calendar feed: all-day Events', () => {
 	});
 });
 
+describe('calendar feed: time-blocked Tasks', () => {
+	it('exports an open Task with a Time block as an event in the Home zone, and skips the rest', () => {
+		const { planner } = createTestPlanner();
+		const blocked = planner.createTask('owner', {
+			title: 'Написать отчёт',
+			timeBlock: { start: '2026-03-30T10:00', minutes: 90 }
+		});
+		planner.createTask('owner', { title: 'Без блока', due: '2026-03-30' });
+		const done = planner.createTask('owner', {
+			title: 'Уже сделано',
+			timeBlock: { start: '2026-03-30T12:00', minutes: 30 }
+		});
+		planner.completeTask('owner', done.id);
+
+		const { events, timeZones } = parseFeed(planner.calendarFeed());
+		expect(events).toHaveLength(1);
+		expect(events[0].uid).toBe(`task-${blocked.id}@planner`);
+		expect(events[0].summary).toBe('[Задача] Написать отчёт');
+		expect(events[0].dtstart).toBe('DTSTART;TZID=Europe/Istanbul:20260330T100000');
+		expect(events[0].dtend).toBe('DTEND;TZID=Europe/Istanbul:20260330T113000');
+		expect(timeZones).toContain('Europe/Istanbul');
+	});
+
+	it('follows the Home time zone it was created with', () => {
+		const { planner } = createTestPlanner({ homeTimeZone: 'America/New_York' });
+		planner.createTask('owner', { title: 'Звонок', timeBlock: { start: '2026-03-30T10:00', minutes: 30 } });
+		expect(parseFeed(planner.calendarFeed()).events[0].dtstart).toBe(
+			'DTSTART;TZID=America/New_York:20260330T100000'
+		);
+	});
+});
+
 describe('calendar feed: time zones across DST', () => {
 	it('lets an independent iCal engine expand the series to the same instants as the core agenda', () => {
 		const { planner } = createTestPlanner();

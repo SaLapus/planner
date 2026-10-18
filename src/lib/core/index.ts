@@ -54,9 +54,10 @@ export function createPlanner(deps: PlannerDeps): Planner {
 	const ctx = createContext(deps);
 	const habits = habitModule(ctx);
 	const goals = goalModule(ctx, habits);
+	const tasks = taskModule(ctx);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
 	return {
-		...taskModule(ctx),
+		...tasks,
 		...organisingModule(ctx),
 		...events,
 		// The merged agenda: Events (their own source) plus Tasks. See agenda.ts.
@@ -65,7 +66,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...goals,
 		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
-		...feedModule(ctx, events),
+		...feedModule(ctx, events, tasks),
 		...safetyModule(ctx)
 	};
 }
