@@ -24,6 +24,12 @@ const MIGRATIONS: string[] = [
 		after       TEXT
 	);
 	`,
+	// Task scheduling: due date (local Home date), optional due time (Home wall clock), priority.
+	`
+	ALTER TABLE task ADD COLUMN due_date TEXT;
+	ALTER TABLE task ADD COLUMN due_time TEXT;
+	ALTER TABLE task ADD COLUMN priority TEXT NOT NULL DEFAULT 'none';
+	`,
 	// Trash: one row per soft-deleted entity, holding its full snapshot until restored or purged.
 	`
 	CREATE TABLE trash (

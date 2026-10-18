@@ -52,6 +52,19 @@ describe('undoChange', () => {
 		expect(planner.listTasks()).toHaveLength(1);
 	});
 
+	it('undoes an update and keeps due date and priority through delete + restore', () => {
+		const { planner } = createTestPlanner();
+		const task = planner.createTask('owner', { title: 'T', due: '2026-03-30T10:00', priority: 'high' });
+		const original = planner.listTasks()[0];
+		planner.updateTask('claude', task.id, { title: 'T2', due: null, priority: 'low' });
+		planner.undoChange('owner', lastId(planner));
+		expect(planner.listTasks()).toEqual([original]);
+
+		planner.deleteItem('owner', 'task', task.id);
+		planner.restoreItem('owner', 'task', task.id);
+		expect(planner.listTasks()).toEqual([original]);
+	});
+
 	it('writes its own change-log entry with the undoing actor', () => {
 		const { planner } = createTestPlanner();
 		const task = planner.createTask('owner', { title: 'T' });

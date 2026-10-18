@@ -19,7 +19,7 @@ import { changeLogModule, type ChangeLogQueries } from './changelog.js';
 import { safetyModule, type SafetyApi } from './safety.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
-export type { Task } from './tasks.js';
+export type { Task, Priority, TaskList } from './tasks.js';
 export type { ChangeLogEntry } from './changelog.js';
 
 export type { TrashItem } from './safety.js';
