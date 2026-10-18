@@ -20,7 +20,16 @@ export interface ReviewPeriod {
 
 export interface ReviewData {
 	period: ReviewPeriod;
-	tasks: { done: Task[] };
+	tasks: {
+		/** Tasks completed during the period (by Home-zone date of completion), in completion order. */
+		done: Task[];
+		/**
+		 * SLIPPED: Tasks that are still open, whose due date lies inside the period, and whose due date is
+		 * before today (Home zone). A Task completed later (even after the period) is no longer slipped.
+		 * Tasks without a due date, or due before the period started, never count as slipped here.
+		 */
+		slipped: Task[];
+	};
 }
 
 export interface ReviewApi {
@@ -64,7 +73,15 @@ export function reviewModule(ctx: CoreContext, habits: HabitApi, goals: GoalApi)
 					.prepare('SELECT id FROM task WHERE completed_at >= ? AND completed_at < ? ORDER BY completed_at, id')
 					.all(from, to) as { id: number }[]
 			).map((r) => readTask(db, r.id));
-			return { period, tasks: { done } };
+			const slipped = (
+				db
+					.prepare(
+						`SELECT id FROM task WHERE completed_at IS NULL AND due_date >= ? AND due_date <= ? AND due_date < ?
+						 ORDER BY due_date, due_time IS NULL, due_time, id`
+					)
+					.all(period.start, period.end, today().toString()) as { id: number }[]
+			).map((r) => readTask(db, r.id));
+			return { period, tasks: { done, slipped } };
 		}
 	};
 }

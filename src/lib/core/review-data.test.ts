@@ -34,4 +34,42 @@ describe('reviewData: tasks done', () => {
 		const data = planner.reviewData({ period: 'week', date: '2026-01-07' });
 		expect(data.tasks.done.map((t) => t.title)).toEqual(['in week', 'late sunday']);
 	});
+
+	it('a month review covers the whole calendar month', () => {
+		const { planner, clock } = createTestPlanner();
+		const jan31 = planner.createTask('owner', { title: 'jan 31' });
+		const feb1 = planner.createTask('owner', { title: 'feb 1' });
+		clock.set('2026-01-31T20:59:00Z'); // 23:59 local on Jan 31
+		planner.completeTask('owner', jan31.id);
+		clock.set('2026-01-31T21:00:00Z'); // 00:00 local on Feb 1
+		planner.completeTask('owner', feb1.id);
+
+		expect(planner.reviewData({ period: 'month', date: '2026-01-15' }).tasks.done.map((t) => t.title)).toEqual(['jan 31']);
+		expect(planner.reviewData({ period: 'month', date: '2026-02-15' }).tasks.done.map((t) => t.title)).toEqual(['feb 1']);
+	});
+});
+
+describe('reviewData: tasks slipped', () => {
+	it('slipped = still open, due inside the period, and that due date is now in the past', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-12T09:00:00Z' }); // Monday after the week
+		const slipped = planner.createTask('owner', { title: 'slipped', due: '2026-01-08' });
+		const doneLate = planner.createTask('owner', { title: 'done late', due: '2026-01-09' });
+		planner.createTask('owner', { title: 'earlier week', due: '2026-01-04' });
+		planner.createTask('owner', { title: 'next week', due: '2026-01-12' });
+		planner.createTask('owner', { title: 'no date' });
+		const lastDay = planner.createTask('owner', { title: 'last day', due: '2026-01-11T23:00' });
+		planner.completeTask('owner', doneLate.id);
+
+		const data = planner.reviewData({ period: 'week', date: '2026-01-07' });
+		expect(data.tasks.slipped.map((t) => t.id)).toEqual([slipped.id, lastDay.id]);
+	});
+
+	it('does not count a task due later in a period that is still running', () => {
+		const { planner } = createTestPlanner({ now: '2026-01-08T09:00:00Z' }); // Thursday
+		planner.createTask('owner', { title: 'yesterday', due: '2026-01-07' });
+		planner.createTask('owner', { title: 'today', due: '2026-01-08' });
+		planner.createTask('owner', { title: 'friday', due: '2026-01-09' });
+		const data = planner.reviewData({ period: 'week' });
+		expect(data.tasks.slipped.map((t) => t.title)).toEqual(['yesterday']);
+	});
 });
