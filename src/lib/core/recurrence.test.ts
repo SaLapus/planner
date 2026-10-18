@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRule, occurrencesBetween, ruleEndingBefore, type RuleSpec } from './recurrence.js';
+import { normalizeRule, occurrenceAt, occurrencesBetween, ruleEndingBefore, type RuleSpec } from './recurrence.js';
 
 const ms = (iso: string) => Temporal.Instant.from(iso).epochMilliseconds;
 const ids = (spec: RuleSpec, from: string, to: string) =>
@@ -98,13 +98,27 @@ describe('recurrence: time zones', () => {
 		expect(new Set(utc)).toEqual(new Set(['06:00:00Z']));
 	});
 
-	it('an occurrence inside the spring-forward gap is skipped (pinned behaviour)', () => {
+	it('an occurrence inside the spring-forward gap is shifted forward (RFC 5545 3.3.10) and counts toward COUNT', () => {
 		const spec = kyiv('FREQ=DAILY;COUNT=3', '2026-03-28T03:30');
-		expect(ids(spec, '2026-03-01T00:00Z', '2026-04-30T00:00Z')).toEqual([
-			'2026-03-28T03:30',
-			'2026-03-30T03:30',
-			'2026-03-31T03:30' // the skipped day does not use up the COUNT
+		const occ = occurrencesBetween(spec, ms('2026-03-01T00:00Z'), ms('2026-04-30T00:00Z'));
+		// recurrenceId stays the original wall clock; the start uses the offset before the gap (+02): 01:30Z = 04:30 +03.
+		expect(occ.map((o) => o.recurrenceId)).toEqual(['2026-03-28T03:30', '2026-03-29T03:30', '2026-03-30T03:30']);
+		expect(occ.map((o) => o.start.toInstant().toString())).toEqual([
+			'2026-03-28T01:30:00Z',
+			'2026-03-29T01:30:00Z',
+			'2026-03-30T00:30:00Z'
 		]);
+	});
+
+	it('the shifted occurrence can be addressed by its original wall clock', () => {
+		const spec = kyiv('FREQ=DAILY', '2026-03-28T03:30');
+		expect(occurrenceAt(spec, '2026-03-29T03:30')?.start.toInstant().toString()).toBe('2026-03-29T01:30:00Z');
+		expect(occurrenceAt(spec, '2026-03-29T04:30')).toBeNull();
+	});
+
+	it('UNTIL still ends the series when the last occurrence is shifted', () => {
+		const spec = kyiv('FREQ=DAILY;UNTIL=2026-03-29', '2026-03-28T03:30');
+		expect(ids(spec, '2026-03-01T00:00Z', '2026-04-30T00:00Z')).toEqual(['2026-03-28T03:30', '2026-03-29T03:30']);
 	});
 });
 

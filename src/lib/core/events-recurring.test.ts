@@ -163,6 +163,20 @@ describe('recurring Events: single occurrences', () => {
 	});
 });
 
+describe('recurring Events: spring-forward gap', () => {
+	it('an occurrence in the gap is shown shifted after the gap and can be cancelled by its original id', () => {
+		const { planner, series } = setup('FREQ=DAILY;COUNT=3', { start: '2026-03-28T03:30' });
+		const items = evs(planner, '2026-03-28', '2026-03-31');
+		expect(items.map((i) => [i.recurrenceId, i.startLocal])).toEqual([
+			['2026-03-28T03:30', '2026-03-28T03:30'],
+			['2026-03-29T03:30', '2026-03-29T04:30'],
+			['2026-03-30T03:30', '2026-03-30T03:30']
+		]);
+		planner.cancelOccurrence('owner', series.id, '2026-03-29T03:30');
+		expect(evs(planner, '2026-03-28', '2026-03-31')).toHaveLength(2);
+	});
+});
+
 describe('recurring Events: this and following (series split)', () => {
 	it('splits the series: old part ends before, new part carries the change', () => {
 		const { planner, series } = setup('FREQ=DAILY');
