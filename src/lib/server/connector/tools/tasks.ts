@@ -7,6 +7,16 @@ const dueSchema = z
 		'ISO 8601: "2026-03-30" (date only = local date in the Home time zone), "2026-03-30T10:00" (Home-zone time), or with Z/offset'
 	);
 const prioritySchema = z.enum(['none', 'low', 'medium', 'high']);
+const timeBlockSchema = z
+	.object({
+		start: z
+			.string()
+			.describe('Start datetime: "2026-03-30T10:00" (Home time zone) or with Z/offset'),
+		minutes: z.number().int().describe('Length in minutes, 1..1440')
+	})
+	.describe(
+		'Time block: when the Task is planned to be worked on. Time-blocked Tasks appear in get_agenda (placement "time_block") next to Events'
+	);
 
 export const registerTaskTools: RegisterTools = (server, { planner, actor }) => {
 	server.registerTool(
@@ -18,12 +28,20 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				title: z.string().describe('What needs to be done'),
 				due: dueSchema.optional(),
 				priority: prioritySchema.optional(),
+				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
 				tags: z.array(z.string()).optional().describe('Free-form tags')
 			})
 		},
-		reply(({ title, due, priority, project_id, tags }) =>
-			planner.createTask(actor, { title, due, priority, projectId: project_id, tags })
+		reply(({ title, due, priority, time_block, project_id, tags }) =>
+			planner.createTask(actor, {
+				title,
+				due,
+				priority,
+				timeBlock: time_block,
+				projectId: project_id,
+				tags
+			})
 		)
 	);
 
@@ -31,15 +49,18 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'update_task',
 		{
 			description:
-				'Change a Task\'s title, due date/time or priority. Only the fields you pass change; pass due: null to remove the due date. Returns the updated Task.',
+				'Change a Task\'s title, due date/time, priority or Time block. Only the fields you pass change; pass due: null to remove the due date and time_block: null to clear the Time block. Returns the updated Task.',
 			inputSchema: z.object({
 				id: z.number().int().describe('Task id from list_tasks'),
 				title: z.string().optional(),
 				due: dueSchema.nullable().optional(),
-				priority: prioritySchema.optional()
+				priority: prioritySchema.optional(),
+				time_block: timeBlockSchema.nullable().optional()
 			})
 		},
-		reply(({ id, ...changes }) => planner.updateTask(actor, id, changes))
+		reply(({ id, time_block, ...changes }) =>
+			planner.updateTask(actor, id, { ...changes, timeBlock: time_block })
+		)
 	);
 
 	server.registerTool(

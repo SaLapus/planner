@@ -99,6 +99,11 @@ const MIGRATIONS: string[] = [
 		UNIQUE (habit_id, date)
 	);
 	`,
+	// Time block on a Task (ticket #9): start as a UTC instant plus a duration in minutes.
+	`
+	ALTER TABLE task ADD COLUMN block_start TEXT;
+	ALTER TABLE task ADD COLUMN block_minutes INTEGER;
+	`,
 	// Goals and Milestones (#13). Links are plain id columns (no FOREIGN KEY): a link to a Goal/Milestone that is in
 	// Trash just stays in the row, dormant, and works again when the target is restored.
 	`

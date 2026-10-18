@@ -34,11 +34,8 @@ export interface Event {
 	updatedAt: string;
 }
 
-/**
- * One entry of the agenda. A typed list so that later tickets (Tasks, #9) can add more `kind`s
- * without changing the shape of the result.
- */
-export type AgendaItem = Event & { kind: 'event' };
+/** An Event as an agenda entry. The full agenda (agenda.ts) also holds Task entries. */
+export type EventAgendaItem = Event & { kind: 'event' };
 
 export interface EventInput {
 	title: string;
@@ -64,7 +61,7 @@ export interface EventApi {
 	 * day); a datetime with Z/offset is an instant; a datetime without offset is Home wall clock
 	 * (and `to` is then exclusive).
 	 */
-	agenda(from: string, to: string): AgendaItem[];
+	agenda(from: string, to: string): EventAgendaItem[];
 	/** Today's local date in the Home zone ("YYYY-MM-DD"). */
 	today(): string;
 }
