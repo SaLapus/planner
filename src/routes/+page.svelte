@@ -17,6 +17,7 @@
 </svelte:head>
 
 <main>
+	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
 	<h1>Задачи</h1>
 
 	<form method="POST" action="?/add" use:enhance>
@@ -55,6 +56,9 @@
 </main>
 
 <style>
+	.logout {
+		text-align: right;
+	}
 	main {
 		max-width: 32rem;
 		margin: 2rem auto;
