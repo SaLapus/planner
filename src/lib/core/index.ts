@@ -24,7 +24,7 @@ import { eventModule, type EventApi } from './events.js';
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList } from './tasks.js';
 export type { Project, TagCount } from './organising.js';
-export type { Event, EventInput, AgendaItem } from './events.js';
+export type { Event, EventInput, AgendaItem, OccurrenceOverride, OccurrencePatch } from './events.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { TrashItem } from './safety.js';
 
