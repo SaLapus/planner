@@ -130,6 +130,19 @@ const MIGRATIONS: string[] = [
 	`
 	ALTER TABLE event ADD COLUMN overrides TEXT NOT NULL DEFAULT '{}';
 	`,
+	// Reviews (#14): one per (week|month, period start). Trash is generic (rows are removed, snapshot kept in `trash`).
+	`
+	CREATE TABLE review (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		period_type  TEXT NOT NULL,
+		period_start TEXT NOT NULL,
+		draft        TEXT NOT NULL DEFAULT '',
+		reflection   TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL,
+		updated_at   TEXT NOT NULL,
+		UNIQUE (period_type, period_start)
+	);
+	`,
 	// Repeating Tasks (ticket #11): repetition as JSON, plus the id of the next instance created on completion.
 	`
 	ALTER TABLE task ADD COLUMN repeat TEXT;
