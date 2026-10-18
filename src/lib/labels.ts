@@ -7,7 +7,8 @@ export const ENTITY_NAMES: Record<string, string> = {
 	checkin: 'Отметка привычки',
 	event: 'Событие',
 	goal: 'Цель',
-	milestone: 'Этап цели'
+	milestone: 'Этап цели',
+	review: 'Обзор'
 };
 
 const VERBS: Record<string, string> = {

@@ -125,6 +125,19 @@ const MIGRATIONS: string[] = [
 	);
 	ALTER TABLE task ADD COLUMN milestone_id INTEGER;
 	ALTER TABLE habit ADD COLUMN goal_id INTEGER;
+	`,
+	// Reviews (#14): one per (week|month, period start). Trash is generic (rows are removed, snapshot kept in `trash`).
+	`
+	CREATE TABLE review (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		period_type  TEXT NOT NULL,
+		period_start TEXT NOT NULL,
+		draft        TEXT NOT NULL DEFAULT '',
+		reflection   TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL,
+		updated_at   TEXT NOT NULL,
+		UNIQUE (period_type, period_start)
+	);
 	`
 ];
 
