@@ -58,9 +58,9 @@ export interface Review {
 
 export interface ReviewData {
 	period: ReviewPeriod;
-	/** Active (not archived, not trashed) Habits that already existed by the end of the period. */
+	/** Habits that existed during the period (created by its end, not trashed), including ones archived AFTER it. */
 	habits: HabitReview[];
-	/** Progress of active Goals AS OF NOW (not frozen at the period's end). */
+	/** CURRENT progress of active Goals, not as of the period's end: Milestone completion, links and Goal status are not time-stamped, so history cannot be reconstructed (labelled as such in the UI and MCP). */
 	goals: GoalProgress[];
 	/** The Review already saved for this period (so it can be updated instead of duplicated), or null. */
 	review: Review | null;
