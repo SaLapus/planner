@@ -24,16 +24,18 @@ import { eventModule, type EventApi } from './events.js';
 import { goalModule, type GoalApi } from './goals.js';
 import { agendaModule, type AgendaApi } from './agenda.js';
 import { reviewModule, type ReviewApi } from './reviews.js';
+import { statsModule, type StatsApi } from './stats.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
 export type { Task, Subtask, TaskFilter, Priority, TaskList, TimeBlock, TimeBlockInput } from './tasks.js';
 export type { Project, TagCount } from './organising.js';
-export type { Event, EventInput, EventAgendaItem } from './events.js';
+export type { Event, EventInput, EventAgendaItem, OccurrenceOverride, OccurrencePatch } from './events.js';
 export type { AgendaItem, TaskAgendaItem } from './agenda.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
 export type { TrashItem } from './safety.js';
 export type { Goal, GoalStatus, GoalWithMilestones, Milestone, GoalProgress } from './goals.js';
+export type { Stats, HabitHitRate, HabitPeriodStat, WeekCount } from './stats.js';
 
 export interface Planner
 	extends TaskApi,
@@ -43,6 +45,7 @@ export interface Planner
 		HabitApi,
 		GoalApi,
 		ReviewApi,
+		StatsApi,
 		ChangeLogQueries,
 		SafetyApi {}
 
@@ -50,6 +53,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
 	const habits = habitModule(ctx);
+	const goals = goalModule(ctx, habits);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
 	const goals = goalModule(ctx, habits);
 	return {
@@ -61,6 +65,7 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...habits,
 		...goals,
 		...reviewModule(ctx, habits, goals),
+		...statsModule(ctx, habits, goals),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
 	};

@@ -7,8 +7,8 @@
 	// After a failed submit, `form.input` holds what the user typed so nothing is lost.
 	const values = $derived(
 		form?.input
-			? { ...form.input, notes: form.input.notes ?? '', location: form.input.location ?? '', allDay: !!form.input.allDay, timeZone: form.input.timeZone ?? data.homeTimeZone, end: form.input.end ?? '' }
-			: { title: '', notes: '', location: '', allDay: false, timeZone: data.homeTimeZone, start: `${data.date}T09:00`, end: '' }
+			? { ...form.input, notes: form.input.notes ?? '', location: form.input.location ?? '', allDay: !!form.input.allDay, timeZone: form.input.timeZone ?? data.homeTimeZone, end: form.input.end ?? '', recurrence: form.input.recurrence ?? null }
+			: { title: '', notes: '', location: '', allDay: false, timeZone: data.homeTimeZone, start: `${data.date}T09:00`, end: '', recurrence: null }
 	);
 </script>
 

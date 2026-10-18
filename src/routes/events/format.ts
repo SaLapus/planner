@@ -69,11 +69,13 @@ export function toRow(item: AgendaItem) {
 			zone: '',
 			allDay: item.allDay,
 			href: `/#task-${item.id}`,
+			repeats: false,
 			timeBlock: item.placement === 'time_block'
 		};
 	}
 	return {
-		key: `event-${item.id}`,
+		// Every occurrence of a repeating Event has the same id, so the key adds the occurrence.
+		key: `event-${item.id}/${item.recurrenceId ?? ''}`,
 		kind: 'event' as const,
 		id: item.id,
 		title: item.title,
@@ -82,7 +84,11 @@ export function toRow(item: AgendaItem) {
 		when: whenLabel(item),
 		zone: zoneNote(item),
 		allDay: item.allDay,
-		href: `/events/${item.id}`,
+		// A repeating Event's link carries the occurrence, so the edit page knows which one was clicked.
+		href: item.recurrenceId
+			? `/events/${item.id}?occ=${encodeURIComponent(item.recurrenceId)}`
+			: `/events/${item.id}`,
+		repeats: item.recurrence !== null,
 		timeBlock: false
 	};
 }

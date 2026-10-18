@@ -126,6 +126,10 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE task ADD COLUMN milestone_id INTEGER;
 	ALTER TABLE habit ADD COLUMN goal_id INTEGER;
 	`,
+	// Recurring Events (ticket #10): per-occurrence changes (cancellations, edits) as JSON keyed by recurrenceId.
+	`
+	ALTER TABLE event ADD COLUMN overrides TEXT NOT NULL DEFAULT '{}';
+	`,
 	// Reviews (#14): one per (week|month, period start). Trash is generic (rows are removed, snapshot kept in `trash`).
 	`
 	CREATE TABLE review (
