@@ -1,0 +1,11 @@
+.git
+.claude
+**/node_modules
+**/.svelte-kit
+**/build
+**/data
+**/.env
+**/.env.*
+*.db*
+site
+docs
