@@ -4,6 +4,9 @@ import { reply, type RegisterTools } from './support.js';
 const TIME_HELP =
 	'Timed Events: an ISO datetime with Z/offset (absolute) or a wall-clock time like "2026-03-30T10:00" read in the Event\'s own time zone (Home zone unless timeZone is given). All-day Events: a date "YYYY-MM-DD".';
 
+const RECURRENCE_HELP =
+	'Makes the Event repeat: an RFC 5545 RRULE value such as "FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=MONTHLY;INTERVAL=2;COUNT=6" or "FREQ=YEARLY;UNTIL=2027-12-31" (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, BYDAY, BYMONTHDAY, BYMONTH, COUNT or UNTIL as an inclusive local date). The start is the first occurrence; its wall-clock time stays the same across daylight saving.';
+
 export const registerEventTools: RegisterTools = (server, { planner, actor }) => {
 	server.registerTool(
 		'create_event',
@@ -19,7 +22,8 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 					.optional()
 					.describe('IANA zone, e.g. Europe/Kyiv. Defaults to the Home zone'),
 				notes: z.string().optional(),
-				location: z.string().optional()
+				location: z.string().optional(),
+				recurrence: z.string().optional().describe(RECURRENCE_HELP)
 			})
 		},
 		reply((input) => planner.createEvent(actor, input))
@@ -28,26 +32,72 @@ export const registerEventTools: RegisterTools = (server, { planner, actor }) =>
 	server.registerTool(
 		'update_event',
 		{
-			description: `Change an Event; only the given fields change. ${TIME_HELP} Switching allDay requires a new start.`,
+			description: `Change an Event; only the given fields change. ${TIME_HELP} Switching allDay requires a new start. For a recurring Event (get_agenda items carry a recurrenceId), pass recurrenceId to change just that occurrence (scope "this", the default) or that occurrence and all after it (scope "following": the series is split and the NEW series is returned). Without recurrenceId the whole series changes (and its single-occurrence changes are dropped if start, time zone or recurrence change). In scope "this" only title, notes, location, start and end can change; moving an occurrence keeps its length unless end is given.`,
 			inputSchema: z.object({
 				id: z.number().int().describe('Event id from get_agenda'),
+				recurrenceId: z
+					.string()
+					.optional()
+					.describe('Occurrence to change: the recurrenceId from get_agenda, e.g. "2026-03-30T09:00"'),
+				scope: z
+					.enum(['this', 'following', 'all'])
+					.optional()
+					.describe('With recurrenceId: "this" (default) or "following". "all" = whole series, give no recurrenceId'),
 				title: z.string().optional(),
 				start: z.string().optional(),
 				end: z.string().optional(),
 				allDay: z.boolean().optional(),
 				timeZone: z.string().optional(),
 				notes: z.string().optional(),
-				location: z.string().optional()
+				location: z.string().optional(),
+				recurrence: z
+					.string()
+					.nullable()
+					.optional()
+					.describe(`${RECURRENCE_HELP} null makes a recurring Event one-off.`)
 			})
 		},
-		reply(({ id, ...patch }) => planner.updateEvent(actor, id, patch))
+		reply(({ id, recurrenceId, scope, ...patch }) => {
+			if (recurrenceId === undefined) {
+				if (scope === 'this' || scope === 'following') {
+					throw new Error(`scope "${scope}" needs a recurrenceId (from get_agenda)`);
+				}
+				return planner.updateEvent(actor, id, patch);
+			}
+			if (scope === 'all') {
+				throw new Error('scope "all" changes the whole series: leave recurrenceId out');
+			}
+			if (scope === 'following') return planner.updateFollowing(actor, id, recurrenceId, patch);
+			const unsupported = (['allDay', 'timeZone', 'recurrence'] as const).filter(
+				(k) => patch[k] !== undefined
+			);
+			if (unsupported.length) {
+				throw new Error(
+					`Cannot change ${unsupported.join(', ')} of a single occurrence; use scope "following" or "all"`
+				);
+			}
+			return planner.updateOccurrence(actor, id, recurrenceId, patch);
+		})
+	);
+
+	server.registerTool(
+		'cancel_occurrence',
+		{
+			description:
+				'Skip ONE occurrence of a recurring Event (the rest of the series is untouched). Use the id and recurrenceId of an item from get_agenda. To end the series from some date on, use update_event with scope "following" and a recurrence, or delete_item for the whole series. Undo with undo_change.',
+			inputSchema: z.object({
+				id: z.number().int().describe('Event id from get_agenda'),
+				recurrenceId: z.string().describe('The occurrence, as given by get_agenda, e.g. "2026-03-30T09:00"')
+			})
+		},
+		reply(({ id, recurrenceId }) => planner.cancelOccurrence(actor, id, recurrenceId))
 	);
 
 	server.registerTool(
 		'get_agenda',
 		{
 			description:
-				'List what is scheduled in a date range, ordered by start, as items with a "kind" field (currently only "event"). Each item has start/end in UTC (timed) or dates (all-day), plus startLocal/endLocal in the item\'s own time zone and startHome/endHome in the Home time zone. If from/to are dates (YYYY-MM-DD) they are Home-zone days and to is INCLUSIVE: from=to="2026-03-30" is that whole day. A datetime with Z/offset is an instant; without offset it is Home wall-clock time and to is exclusive.',
+				'List what is scheduled in a date range, ordered by start, as items with a "kind" field (currently only "event"). Recurring Events are expanded: each occurrence is its own item with the series id and a recurrenceId (pass these to update_event or cancel_occurrence; null for one-off Events). Each item has start/end in UTC (timed) or dates (all-day), plus startLocal/endLocal in the item\'s own time zone and startHome/endHome in the Home time zone. If from/to are dates (YYYY-MM-DD) they are Home-zone days and to is INCLUSIVE: from=to="2026-03-30" is that whole day. A datetime with Z/offset is an instant; without offset it is Home wall-clock time and to is exclusive.',
 			inputSchema: z.object({
 				from: z.string().describe('Range start: date or datetime'),
 				to: z.string().describe('Range end: date (inclusive) or datetime (exclusive)')
