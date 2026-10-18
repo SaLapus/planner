@@ -5,7 +5,9 @@ export const ENTITY_NAMES: Record<string, string> = {
 	project: 'Проект',
 	habit: 'Привычка',
 	checkin: 'Отметка привычки',
-	event: 'Событие'
+	event: 'Событие',
+	goal: 'Цель',
+	milestone: 'Этап цели'
 };
 
 const VERBS: Record<string, string> = {
@@ -26,7 +28,11 @@ const VERBS: Record<string, string> = {
 	uncheck_subtask: 'снятие отметки подзадачи',
 	remove_subtask: 'удаление подзадачи',
 	reorder_subtasks: 'порядок подзадач',
-	add: 'добавление'
+	add: 'добавление',
+	set_status: 'смена статуса',
+	reorder_milestones: 'порядок этапов',
+	set_milestone: 'связь с этапом цели',
+	set_goal: 'связь с целью'
 };
 
 export const entityName = (type: string) => ENTITY_NAMES[type] ?? type;

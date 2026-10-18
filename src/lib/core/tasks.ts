@@ -43,6 +43,8 @@ export interface Task {
 	tags: string[];
 	/** One-level checklist, in order. Managed by organising.ts. */
 	subtasks: Subtask[];
+	/** Milestone this Task moves forward (0..1). Managed by goals.ts; dormant while the Milestone is in Trash. */
+	milestoneId: number | null;
 }
 
 export interface Subtask {
@@ -100,6 +102,7 @@ interface TaskRow {
 	project_id: number | null;
 	block_start: string | null;
 	block_minutes: number | null;
+	milestone_id: number | null;
 }
 
 /** Reads a Task with its project, tags and subtasks. Shared with organising.ts. */
@@ -127,7 +130,8 @@ function toTask(db: DatabaseSync, r: TaskRow): Task {
 		timeBlock: r.block_start === null ? null : { start: r.block_start, minutes: r.block_minutes! },
 		projectId: r.project_id,
 		tags: tags.map((t) => t.tag),
-		subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done === 1 }))
+		subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, done: s.done === 1 })),
+		milestoneId: r.milestone_id
 	};
 }
 
@@ -211,8 +215,8 @@ export function taskModule({
 			}
 			db.prepare(
 				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id, block_start, block_minutes)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				t.id,
 				t.title,
@@ -223,7 +227,8 @@ export function taskModule({
 				t.priority,
 				t.projectId,
 				t.timeBlock?.start ?? null,
-				t.timeBlock?.minutes ?? null
+				t.timeBlock?.minutes ?? null,
+				t.milestoneId
 			);
 			db.prepare('DELETE FROM task_tag WHERE task_id = ?').run(t.id);
 			db.prepare('DELETE FROM subtask WHERE task_id = ?').run(t.id);

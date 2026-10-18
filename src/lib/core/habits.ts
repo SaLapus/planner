@@ -27,6 +27,8 @@ export interface Habit {
 	/** UTC instant, or null while the Habit is active. */
 	archivedAt: string | null;
 	createdAt: string;
+	/** Goal this Habit supports (0..1). Managed by goals.ts; dormant while the Goal is in Trash. */
+	goalId: number | null;
 }
 
 export interface Checkin {
@@ -93,6 +95,7 @@ interface HabitRow {
 	schedule: string;
 	archived_at: string | null;
 	created_at: string;
+	goal_id: number | null;
 }
 
 interface CheckinRow {
@@ -116,7 +119,8 @@ const toHabit = (r: HabitRow): Habit => ({
 	title: r.title,
 	schedule: JSON.parse(r.schedule) as HabitSchedule,
 	archivedAt: r.archived_at,
-	createdAt: r.created_at
+	createdAt: r.created_at,
+	goalId: r.goal_id
 });
 
 function normalizeSchedule(s: HabitSchedule): HabitSchedule {
@@ -231,8 +235,8 @@ export function habitModule(ctx: CoreContext): HabitApi {
 		read: readHabit,
 		write: (h) => {
 			db.prepare(
-				'INSERT OR REPLACE INTO habit (id, title, schedule, archived_at, created_at) VALUES (?, ?, ?, ?, ?)'
-			).run(h.id, h.title, JSON.stringify(h.schedule), h.archivedAt, h.createdAt);
+				'INSERT OR REPLACE INTO habit (id, title, schedule, archived_at, created_at, goal_id) VALUES (?, ?, ?, ?, ?, ?)'
+			).run(h.id, h.title, JSON.stringify(h.schedule), h.archivedAt, h.createdAt, h.goalId);
 			db.prepare('DELETE FROM habit_checkin WHERE habit_id = ?').run(h.id);
 			for (const c of h.checkins) {
 				db.prepare('INSERT INTO habit_checkin (id, habit_id, date, created_at) VALUES (?, ?, ?, ?)').run(

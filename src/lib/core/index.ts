@@ -21,6 +21,7 @@ import { changeLogModule, type ChangeLogQueries } from './changelog.js';
 import { safetyModule, type SafetyApi } from './safety.js';
 
 import { eventModule, type EventApi } from './events.js';
+import { goalModule, type GoalApi } from './goals.js';
 import { agendaModule, type AgendaApi } from './agenda.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
@@ -31,6 +32,7 @@ export type { AgendaItem, TaskAgendaItem } from './agenda.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
 export type { TrashItem } from './safety.js';
+export type { Goal, GoalStatus, GoalWithMilestones, Milestone, GoalProgress } from './goals.js';
 
 export interface Planner
 	extends TaskApi,
@@ -38,12 +40,14 @@ export interface Planner
 		Omit<EventApi, 'agenda'>,
 		AgendaApi,
 		HabitApi,
+		GoalApi,
 		ChangeLogQueries,
 		SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
+	const habits = habitModule(ctx);
 	const { agenda: eventAgenda, ...events } = eventModule(ctx);
 	return {
 		...taskModule(ctx),
@@ -51,7 +55,8 @@ export function createPlanner(deps: PlannerDeps): Planner {
 		...events,
 		// The merged agenda: Events (their own source) plus Tasks. See agenda.ts.
 		...agendaModule(ctx, eventAgenda),
-		...habitModule(ctx),
+		...habits,
+		...goalModule(ctx, habits),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
 	};
