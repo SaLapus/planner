@@ -2,6 +2,8 @@
 // string and back, and describes a rule in Russian. Rules the editor cannot express (for example
 // "first Monday of the month") are kept untouched in `custom`.
 
+import { plural, ruleParts } from '../rrule-form.js';
+
 export type Freq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 
 export interface RecurrenceForm {
@@ -60,11 +62,7 @@ export function parseRule(rule: string | null, timeZone: string): RecurrenceForm
 	const f = empty();
 	if (!rule) return f;
 	const custom = () => ({ ...empty(), custom: rule });
-	const map = new Map<string, string>();
-	for (const p of rule.split(';')) {
-		const [k, v] = p.split('=');
-		map.set(k, v);
-	}
+	const map = ruleParts(rule);
 	const freq = map.get('FREQ');
 	if (freq !== 'DAILY' && freq !== 'WEEKLY' && freq !== 'MONTHLY' && freq !== 'YEARLY') return custom();
 	for (const k of map.keys()) {
@@ -98,7 +96,7 @@ export function parseRule(rule: string | null, timeZone: string): RecurrenceForm
 	return f;
 }
 
-const times = (n: number) => `${n} ${n % 10 >= 2 && n % 10 <= 4 && (n < 12 || n > 14) ? 'раза' : 'раз'}`;
+const times = (n: number) => `${n} ${plural(n, ['раз', 'раза', 'раз'])}`;
 
 /** A short Russian description of a rule, for lists: "Каждую неделю: пн, ср, 5 раз". */
 export function describeRule(rule: string, timeZone = 'UTC'): string {
