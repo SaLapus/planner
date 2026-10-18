@@ -13,6 +13,7 @@
 	<nav>
 		<a href="/">Задачи</a>
 		<a href="/events/day/{data.today}">День</a>
+		<a href="/events/week/{data.today}">Неделя</a>
 		<a href="/events/new" class="add">+ Событие</a>
 	</nav>
 	<h1>Расписание</h1>

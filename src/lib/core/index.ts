@@ -21,24 +21,36 @@ import { changeLogModule, type ChangeLogQueries } from './changelog.js';
 import { safetyModule, type SafetyApi } from './safety.js';
 
 import { eventModule, type EventApi } from './events.js';
+import { agendaModule, type AgendaApi } from './agenda.js';
 
 export type { Actor, Clock, PlannerDeps } from './context.js';
-export type { Task, Subtask, TaskFilter, Priority, TaskList } from './tasks.js';
+export type { Task, Subtask, TaskFilter, Priority, TaskList, TimeBlock, TimeBlockInput } from './tasks.js';
 export type { Project, TagCount } from './organising.js';
-export type { Event, EventInput, AgendaItem } from './events.js';
+export type { Event, EventInput, EventAgendaItem } from './events.js';
+export type { AgendaItem, TaskAgendaItem } from './agenda.js';
 export type { ChangeLogEntry } from './changelog.js';
 export type { Habit, Checkin, HabitSchedule, HabitStatus, PeriodType } from './habits.js';
 export type { TrashItem } from './safety.js';
 
-export interface Planner extends TaskApi, OrganisingApi, EventApi, HabitApi, ChangeLogQueries, SafetyApi {}
+export interface Planner
+	extends TaskApi,
+		OrganisingApi,
+		Omit<EventApi, 'agenda'>,
+		AgendaApi,
+		HabitApi,
+		ChangeLogQueries,
+		SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
 	migrate(deps.db);
 	const ctx = createContext(deps);
+	const { agenda: eventAgenda, ...events } = eventModule(ctx);
 	return {
 		...taskModule(ctx),
 		...organisingModule(ctx),
-		...eventModule(ctx),
+		...events,
+		// The merged agenda: Events (their own source) plus Tasks. See agenda.ts.
+		...agendaModule(ctx, eventAgenda),
 		...habitModule(ctx),
 		...changeLogModule(ctx),
 		...safetyModule(ctx)
