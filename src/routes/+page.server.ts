@@ -5,29 +5,32 @@ import { fail } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actions, PageServerLoad } from './$types';
 
-// Until login exists (a later ticket), everyone using the web UI is the owner.
-const ACTOR = 'owner' as const;
+// Every UI request has passed the login check in hooks.server.ts, which sets locals.actor to 'owner'.
+function actorOf(locals: App.Locals) {
+	if (!locals.actor) throw new Error('Not authenticated');
+	return locals.actor;
+}
 
 export const load: PageServerLoad = () => {
 	return { tasks: getPlanner().listTasks() };
 };
 
 export const actions: Actions = {
-	add: async ({ request }) => {
+	add: async ({ request, locals }) => {
 		const title = String((await request.formData()).get('title') ?? '');
 		try {
-			getPlanner().createTask(ACTOR, { title });
+			getPlanner().createTask(actorOf(locals), { title });
 		} catch (e) {
 			return fail(400, { title, error: e instanceof Error ? e.message : 'Ошибка' });
 		}
 	},
-	toggle: async ({ request }) => {
+	toggle: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = Number(form.get('id'));
 		const planner = getPlanner();
 		try {
-			if (form.get('done') === 'true') planner.completeTask(ACTOR, id);
-			else planner.uncompleteTask(ACTOR, id);
+			if (form.get('done') === 'true') planner.completeTask(actorOf(locals), id);
+			else planner.uncompleteTask(actorOf(locals), id);
 		} catch (e) {
 			return fail(400, { error: e instanceof Error ? e.message : 'Ошибка' });
 		}
