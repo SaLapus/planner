@@ -81,6 +81,11 @@ const MIGRATIONS: string[] = [
 		created_at  TEXT NOT NULL,
 		updated_at  TEXT NOT NULL
 	);
+	`,
+	// Time block on a Task (ticket #9): start as a UTC instant plus a duration in minutes.
+	`
+	ALTER TABLE task ADD COLUMN block_start TEXT;
+	ALTER TABLE task ADD COLUMN block_minutes INTEGER;
 	`
 ];
 
