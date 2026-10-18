@@ -36,14 +36,9 @@ export const load: PageServerLoad = () => {
 	});
 
 	const all = planner.listHabits({ includeArchived: true });
-	const titles = new Map(all.map((h) => [h.id, h.title]));
 	return {
 		habits,
-		archived: all.filter((h) => h.archivedAt !== null),
-		trashHabits: planner.listDeletedHabits(),
-		trashCheckins: planner
-			.listDeletedCheckins()
-			.map((c) => ({ ...c, habitTitle: titles.get(c.habitId) ?? `#${c.habitId}` }))
+		archived: all.filter((h) => h.archivedAt !== null)
 	};
 };
 
@@ -68,12 +63,15 @@ export const actions: Actions = {
 	checkin: run((form, actor) => {
 		const id = Number(form.get('id'));
 		const date = String(form.get('date'));
-		if (form.get('on') === 'true') getPlanner().addCheckin(actor, id, { date });
-		else getPlanner().removeCheckin(actor, id, { date });
+		const planner = getPlanner();
+		if (form.get('on') === 'true') planner.addCheckin(actor, id, { date });
+		else {
+			const checkin = planner.checkinOn(id, date);
+			if (!checkin) throw new Error('Отметки на эту дату нет');
+			planner.deleteItem(actor, 'checkin', checkin.id); // goes to /trash, can be restored
+		}
 	}),
 	archive: run((form, actor) => void getPlanner().archiveHabit(actor, Number(form.get('id')))),
 	unarchive: run((form, actor) => void getPlanner().unarchiveHabit(actor, Number(form.get('id')))),
-	delete: run((form, actor) => void getPlanner().deleteHabit(actor, Number(form.get('id')))),
-	restoreHabit: run((form, actor) => void getPlanner().restoreHabit(actor, Number(form.get('id')))),
-	restoreCheckin: run((form, actor) => void getPlanner().restoreCheckin(actor, Number(form.get('id'))))
+	delete: run((form, actor) => getPlanner().deleteItem(actor, 'habit', Number(form.get('id'))))
 };

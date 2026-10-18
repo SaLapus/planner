@@ -69,21 +69,6 @@ export const registerHabitTools: RegisterTools = (server, { planner, actor }) =>
 	);
 
 	server.registerTool(
-		'delete_habit',
-		{
-			description: 'Delete a Habit (soft: it goes to the Trash with its Check-ins and can be restored with restore_habit).',
-			inputSchema: z.object({ id: z.number().int() })
-		},
-		reply(({ id }) => planner.deleteHabit(actor, id))
-	);
-
-	server.registerTool(
-		'restore_habit',
-		{ description: 'Restore a deleted Habit from the Trash.', inputSchema: z.object({ id: z.number().int() }) },
-		reply(({ id }) => planner.restoreHabit(actor, id))
-	);
-
-	server.registerTool(
 		'add_checkin',
 		{
 			description:
@@ -96,19 +81,16 @@ export const registerHabitTools: RegisterTools = (server, { planner, actor }) =>
 	server.registerTool(
 		'remove_checkin',
 		{
-			description: 'Remove the Check-in of a Habit on a date (soft: restorable with restore_checkin using the returned id).',
+			description:
+				'Remove the Check-in of a Habit on a date (it goes to the Trash; bring it back with restore_item type "checkin", or revert with undo_change). To delete a whole Habit use delete_item with type "habit".',
 			inputSchema: z.object({ habitId: z.number().int(), date: dateArg('Date of the Check-in to remove') })
 		},
-		reply(({ habitId, date }) => planner.removeCheckin(actor, habitId, { date }))
-	);
-
-	server.registerTool(
-		'restore_checkin',
-		{
-			description: 'Bring back a removed Check-in by its id.',
-			inputSchema: z.object({ checkinId: z.number().int() })
-		},
-		reply(({ checkinId }) => planner.restoreCheckin(actor, checkinId))
+		reply(({ habitId, date }) => {
+			const checkin = planner.checkinOn(habitId, date);
+			if (!checkin) throw new Error(`Habit ${habitId} has no check-in on ${date ?? 'today'}`);
+			planner.deleteItem(actor, 'checkin', checkin.id);
+			return checkin;
+		})
 	);
 
 	server.registerTool(

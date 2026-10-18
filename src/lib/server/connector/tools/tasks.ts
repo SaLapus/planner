@@ -13,14 +13,18 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'create_task',
 		{
 			description:
-				'Create a Task (a to-do item) with a title and optional due date/time and priority. Text is stored exactly as given, in any language. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
+				'Create a Task (a to-do item) with a title and optional due date/time, priority, project and tags. Text is stored exactly as given, in any language. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
 			inputSchema: z.object({
 				title: z.string().describe('What needs to be done'),
 				due: dueSchema.optional(),
-				priority: prioritySchema.optional()
+				priority: prioritySchema.optional(),
+				project_id: z.number().int().optional().describe('Project id from list_projects'),
+				tags: z.array(z.string()).optional().describe('Free-form tags')
 			})
 		},
-		reply(({ title, due, priority }) => planner.createTask(actor, { title, due, priority }))
+		reply(({ title, due, priority, project_id, tags }) =>
+			planner.createTask(actor, { title, due, priority, projectId: project_id, tags })
+		)
 	);
 
 	server.registerTool(
@@ -60,10 +64,14 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 	server.registerTool(
 		'list_tasks',
 		{
-			description: 'List all Tasks, oldest first. A Task with completedAt set is done.',
-			inputSchema: z.object({})
+			description:
+				'List Tasks, oldest first, optionally filtered by project_id (null = no project) and/or tag. A Task with completedAt set is done. Tasks of archived Projects are included.',
+			inputSchema: z.object({
+				project_id: z.number().int().nullable().optional(),
+				tag: z.string().optional()
+			})
 		},
-		reply(() => planner.listTasks())
+		reply(({ project_id, tag }) => planner.listTasks({ projectId: project_id, tag }))
 	);
 
 	server.registerTool(

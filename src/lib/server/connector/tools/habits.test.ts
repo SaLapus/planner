@@ -31,7 +31,7 @@ describe('Habit tools over MCP', () => {
 		]);
 	});
 
-	it('removes and restores a check-in; deletes and restores a habit; errors are tool errors', async () => {
+	it('remove_checkin goes to Trash and is restorable via the generic tools; errors are tool errors', async () => {
 		const t = createTestConnector();
 		const claude = await t.connectClaude();
 		const habit = toolJson<{ id: number }>(
@@ -46,15 +46,32 @@ describe('Habit tools over MCP', () => {
 
 		await claude.callTool({ name: 'remove_checkin', arguments: { habitId: habit.id } });
 		expect(t.planner.habitStatus({}).habits[0].done).toBe(0);
-		await claude.callTool({ name: 'restore_checkin', arguments: { checkinId: checkin.id } });
+		await claude.callTool({ name: 'restore_item', arguments: { type: 'checkin', id: checkin.id } });
 		expect(t.planner.habitStatus({}).habits[0].checkins).toHaveLength(1);
 
-		await claude.callTool({ name: 'delete_habit', arguments: { id: habit.id } });
+		await claude.callTool({ name: 'delete_item', arguments: { type: 'habit', id: habit.id } });
 		expect(t.planner.listHabits()).toEqual([]);
-		await claude.callTool({ name: 'restore_habit', arguments: { id: habit.id } });
-		expect(t.planner.listHabits()).toHaveLength(1);
 
 		const bad = await claude.callTool({ name: 'add_checkin', arguments: { habitId: 999 } });
 		expect(bad.isError).toBe(true);
+		const none = await claude.callTool({ name: 'remove_checkin', arguments: { habitId: habit.id } });
+		expect(none.isError).toBe(true);
+	});
+
+	it('undo_change reverts an add_checkin', async () => {
+		const t = createTestConnector();
+		const claude = await t.connectClaude();
+		const habit = toolJson<{ id: number }>(
+			await claude.callTool({
+				name: 'create_habit',
+				arguments: { title: 'x', schedule: { type: 'per_week', count: 2 } }
+			})
+		);
+		await claude.callTool({ name: 'add_checkin', arguments: { habitId: habit.id } });
+		const entry = t.planner.changeLog().at(-1)!;
+
+		await claude.callTool({ name: 'undo_change', arguments: { id: entry.id } });
+
+		expect(t.planner.habitStatus({}).habits[0].done).toBe(0);
 	});
 });

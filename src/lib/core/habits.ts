@@ -7,7 +7,10 @@
  * number of consecutive met Periods ending at the last closed Period, plus the current one if it is
  * already met; the open Period never breaks a Streak.
  *
- * Deleting a Habit or removing a Check-in is soft (`deleted_at`), so Trash/undo can bring it back.
+ * Habits and Check-ins are registered with the generic Trash/undo (see `ctx.entities`): delete with
+ * `planner.deleteItem(actor, 'habit' | 'checkin', id)`, restore with `restoreItem`, revert with `undoChange`.
+ * A Habit's snapshot (what Trash and the change log store) includes its Check-ins, so deleting and
+ * restoring a Habit keeps its history.
  */
 import type { Actor, CoreContext } from './context.js';
 
@@ -29,6 +32,7 @@ export interface Habit {
 export interface Checkin {
 	id: number;
 	habitId: number;
+	createdAt: string;
 	/** Local date (YYYY-MM-DD) in the Home time zone. */
 	date: string;
 }
@@ -62,20 +66,14 @@ export interface HabitApi {
 	updateHabit(actor: Actor, id: number, patch: { title?: string; schedule?: HabitSchedule }): Habit;
 	archiveHabit(actor: Actor, id: number): Habit;
 	unarchiveHabit(actor: Actor, id: number): Habit;
-	/** Soft delete: the Habit and its Check-ins go to the Trash. */
-	deleteHabit(actor: Actor, id: number): Habit;
-	restoreHabit(actor: Actor, id: number): Habit;
 	listHabits(opts?: { includeArchived?: boolean }): Habit[];
-	listDeletedHabits(): Habit[];
 
 	/** `date` is a local date, or an instant (ISO with Z/offset) converted to the Home zone; default: today. */
 	addCheckin(actor: Actor, habitId: number, input: { date?: string }): Checkin;
-	/** Soft delete of the Check-in on that local date (default: today). */
-	removeCheckin(actor: Actor, habitId: number, input: { date?: string }): Checkin;
-	restoreCheckin(actor: Actor, checkinId: number): Checkin;
+	/** The active Check-in of a Habit on a local date (default today), or null. Delete it with `deleteItem(actor, 'checkin', id)`. */
+	checkinOn(habitId: number, date?: string): Checkin | null;
 	/** Local dates (sorted) with a Check-in for the Habit, between `from` and `to` inclusive. */
 	listCheckinDates(habitId: number, range: { from: string; to: string }): string[];
-	listDeletedCheckins(): Checkin[];
 
 	/**
 	 * Progress and Streak of each Habit in the Period containing `date` (default today).
@@ -94,9 +92,24 @@ interface HabitRow {
 	title: string;
 	schedule: string;
 	archived_at: string | null;
-	deleted_at: string | null;
 	created_at: string;
 }
+
+interface CheckinRow {
+	id: number;
+	habit_id: number;
+	date: string;
+	created_at: string;
+}
+const toCheckin = (r: CheckinRow): Checkin => ({
+	id: r.id,
+	habitId: r.habit_id,
+	date: r.date,
+	createdAt: r.created_at
+});
+
+/** What Trash and the change log keep for a Habit: the Habit plus its Check-ins. */
+type HabitSnapshot = Habit & { checkins: Checkin[] };
 
 const toHabit = (r: HabitRow): Habit => ({
 	id: r.id,
@@ -147,7 +160,7 @@ function parseDate(s: string): Temporal.PlainDate {
 }
 
 export function habitModule(ctx: CoreContext): HabitApi {
-	const { db, nowIso, atomically, record, homeTimeZone } = ctx;
+	const { db, nowIso, atomically, record, entities, homeTimeZone } = ctx;
 
 	const today = () => Temporal.Instant.from(nowIso()).toZonedDateTimeISO(homeTimeZone).toPlainDate();
 
@@ -167,13 +180,27 @@ export function habitModule(ctx: CoreContext): HabitApi {
 		}
 	}
 
-	function getHabitRow(id: number, opts: { deleted?: boolean } = {}): HabitRow {
+	function getHabitRow(id: number): HabitRow {
 		const row = db.prepare('SELECT * FROM habit WHERE id = ?').get(id) as HabitRow | undefined;
-		if (!row || (row.deleted_at !== null) !== (opts.deleted ?? false))
-			throw new Error(`Habit ${id} not found`);
+		if (!row) throw new Error(`Habit ${id} not found`);
 		return row;
 	}
-	const getHabit = (id: number) => toHabit(getHabitRow(id));
+	/** Full snapshot (Habit + its Check-ins), or null: what Trash and the change log store. */
+	function readHabit(id: number): HabitSnapshot | null {
+		const row = db.prepare('SELECT * FROM habit WHERE id = ?').get(id) as HabitRow | undefined;
+		if (!row) return null;
+		return {
+			...toHabit(row),
+			checkins: (db.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? ORDER BY id').all(id) as unknown as CheckinRow[]).map(toCheckin)
+		};
+	}
+	function snapshot(id: number): HabitSnapshot {
+		const h = readHabit(id);
+		if (!h) throw new Error(`Habit ${id} not found`);
+		return h;
+	}
+	const getHabit = (id: number): Habit => toHabit(getHabitRow(id));
+	const plain = ({ checkins: _c, ...habit }: HabitSnapshot): Habit => habit;
 
 	function cleanTitle(t: string) {
 		const title = t.trim();
@@ -183,33 +210,68 @@ export function habitModule(ctx: CoreContext): HabitApi {
 
 	function setArchived(actor: Actor, id: number, archived: boolean): Habit {
 		return atomically(() => {
-			const before = getHabit(id);
+			const before = snapshot(id);
 			if (archived === (before.archivedAt !== null))
 				throw new Error(`Habit ${id} is already ${archived ? 'archived' : 'active'}`);
 			db.prepare('UPDATE habit SET archived_at = ? WHERE id = ?').run(archived ? nowIso() : null, id);
-			const after = getHabit(id);
+			const after = snapshot(id);
 			record(actor, archived ? 'habit.archive' : 'habit.unarchive', 'habit', id, before, after);
-			return after;
+			return plain(after);
 		});
 	}
 
-	function getCheckin(id: number) {
-		const row = db.prepare('SELECT id, habit_id, date, deleted_at FROM habit_checkin WHERE id = ?').get(id) as
-			| { id: number; habit_id: number; date: string; deleted_at: string | null }
-			| undefined;
-		if (!row) throw new Error(`Check-in ${id} not found`);
-		return row;
+	function readCheckin(id: number): Checkin | null {
+		const row = db.prepare('SELECT * FROM habit_checkin WHERE id = ?').get(id) as CheckinRow | undefined;
+		return row ? toCheckin(row) : null;
 	}
-	const toCheckin = (r: { id: number; habit_id: number; date: string }): Checkin => ({
-		id: r.id,
-		habitId: r.habit_id,
-		date: r.date
+
+	// Makes Habits and Check-ins trashable and undoable (generic mechanism in safety.ts).
+	entities.register<HabitSnapshot>({
+		type: 'habit',
+		read: readHabit,
+		write: (h) => {
+			db.prepare(
+				'INSERT OR REPLACE INTO habit (id, title, schedule, archived_at, created_at) VALUES (?, ?, ?, ?, ?)'
+			).run(h.id, h.title, JSON.stringify(h.schedule), h.archivedAt, h.createdAt);
+			db.prepare('DELETE FROM habit_checkin WHERE habit_id = ?').run(h.id);
+			for (const c of h.checkins) {
+				db.prepare('INSERT INTO habit_checkin (id, habit_id, date, created_at) VALUES (?, ?, ?, ?)').run(
+					c.id,
+					h.id,
+					c.date,
+					c.createdAt
+				);
+			}
+		},
+		remove: (id) => {
+			db.prepare('DELETE FROM habit_checkin WHERE habit_id = ?').run(id);
+			db.prepare('DELETE FROM habit WHERE id = ?').run(id);
+		},
+		label: (h) => h.title
+	});
+	entities.register<Checkin>({
+		type: 'checkin',
+		read: readCheckin,
+		write: (c) => {
+			if (!db.prepare('SELECT 1 FROM habit WHERE id = ?').get(c.habitId))
+				throw new Error(`its habit ${c.habitId} is in Trash or gone; restore the habit first`);
+			if (db.prepare('SELECT 1 FROM habit_checkin WHERE habit_id = ? AND date = ? AND id <> ?').get(c.habitId, c.date, c.id))
+				throw new Error(`the habit is already checked in on ${c.date}`);
+			db.prepare(
+				'INSERT OR REPLACE INTO habit_checkin (id, habit_id, date, created_at) VALUES (?, ?, ?, ?)'
+			).run(c.id, c.habitId, c.date, c.createdAt);
+		},
+		remove: (id) => void db.prepare('DELETE FROM habit_checkin WHERE id = ?').run(id),
+		label: (c) => {
+			const h = db.prepare('SELECT title FROM habit WHERE id = ?').get(c.habitId) as { title: string } | undefined;
+			return `${h?.title ?? `habit #${c.habitId}`}, ${c.date}`;
+		}
 	});
 
 	function checkinDates(habitId: number): string[] {
 		return (
 			db
-				.prepare('SELECT date FROM habit_checkin WHERE habit_id = ? AND deleted_at IS NULL ORDER BY date')
+				.prepare('SELECT date FROM habit_checkin WHERE habit_id = ? ORDER BY date')
 				.all(habitId) as { date: string }[]
 		).map((r) => r.date);
 	}
@@ -272,14 +334,14 @@ export function habitModule(ctx: CoreContext): HabitApi {
 				const { lastInsertRowid } = db
 					.prepare('INSERT INTO habit (title, schedule, created_at) VALUES (?, ?, ?)')
 					.run(title, JSON.stringify(schedule), nowIso());
-				const habit = getHabit(Number(lastInsertRowid));
+				const habit = snapshot(Number(lastInsertRowid));
 				record(actor, 'habit.create', 'habit', habit.id, null, habit);
-				return habit;
+				return plain(habit);
 			});
 		},
 		updateHabit(actor, id, patch) {
 			return atomically(() => {
-				const before = getHabit(id);
+				const before = snapshot(id);
 				const title = patch.title === undefined ? before.title : cleanTitle(patch.title);
 				const schedule = patch.schedule === undefined ? before.schedule : normalizeSchedule(patch.schedule);
 				db.prepare('UPDATE habit SET title = ?, schedule = ? WHERE id = ?').run(
@@ -287,40 +349,16 @@ export function habitModule(ctx: CoreContext): HabitApi {
 					JSON.stringify(schedule),
 					id
 				);
-				const after = getHabit(id);
+				const after = snapshot(id);
 				record(actor, 'habit.update', 'habit', id, before, after);
-				return after;
+				return plain(after);
 			});
 		},
 		archiveHabit: (actor, id) => setArchived(actor, id, true),
 		unarchiveHabit: (actor, id) => setArchived(actor, id, false),
-		deleteHabit(actor, id) {
-			return atomically(() => {
-				const before = getHabit(id);
-				db.prepare('UPDATE habit SET deleted_at = ? WHERE id = ?').run(nowIso(), id);
-				record(actor, 'habit.delete', 'habit', id, before, null);
-				return before;
-			});
-		},
-		restoreHabit(actor, id) {
-			return atomically(() => {
-				getHabitRow(id, { deleted: true });
-				db.prepare('UPDATE habit SET deleted_at = NULL WHERE id = ?').run(id);
-				const after = getHabit(id);
-				record(actor, 'habit.restore', 'habit', id, null, after);
-				return after;
-			});
-		},
 		listHabits(opts = {}) {
-			const rows = db
-				.prepare('SELECT * FROM habit WHERE deleted_at IS NULL ORDER BY id')
-				.all() as unknown as HabitRow[];
+			const rows = db.prepare('SELECT * FROM habit ORDER BY id').all() as unknown as HabitRow[];
 			return rows.map(toHabit).filter((h) => opts.includeArchived || h.archivedAt === null);
-		},
-		listDeletedHabits() {
-			return (
-				db.prepare('SELECT * FROM habit WHERE deleted_at IS NOT NULL ORDER BY id').all() as unknown as HabitRow[]
-			).map(toHabit);
 		},
 
 		addCheckin(actor, habitId, input) {
@@ -330,52 +368,22 @@ export function habitModule(ctx: CoreContext): HabitApi {
 			return atomically(() => {
 				getHabit(habitId);
 				const dup = db
-					.prepare('SELECT id FROM habit_checkin WHERE habit_id = ? AND date = ? AND deleted_at IS NULL')
+					.prepare('SELECT id FROM habit_checkin WHERE habit_id = ? AND date = ?')
 					.get(habitId, date.toString());
 				if (dup) throw new Error(`Habit ${habitId} is already checked in on ${date}`);
 				const { lastInsertRowid } = db
 					.prepare('INSERT INTO habit_checkin (habit_id, date, created_at) VALUES (?, ?, ?)')
 					.run(habitId, date.toString(), nowIso());
-				const checkin = toCheckin(getCheckin(Number(lastInsertRowid)));
+				const checkin = readCheckin(Number(lastInsertRowid))!;
 				record(actor, 'checkin.add', 'checkin', checkin.id, null, checkin);
 				return checkin;
 			});
 		},
-		removeCheckin(actor, habitId, input) {
-			const date = localDate(input.date);
-			return atomically(() => {
-				getHabit(habitId);
-				const row = db
-					.prepare('SELECT id FROM habit_checkin WHERE habit_id = ? AND date = ? AND deleted_at IS NULL')
-					.get(habitId, date.toString()) as { id: number } | undefined;
-				if (!row) throw new Error(`Habit ${habitId} has no check-in on ${date}`);
-				const before = toCheckin(getCheckin(row.id));
-				db.prepare('UPDATE habit_checkin SET deleted_at = ? WHERE id = ?').run(nowIso(), row.id);
-				record(actor, 'checkin.remove', 'checkin', row.id, before, null);
-				return before;
-			});
-		},
-		restoreCheckin(actor, checkinId) {
-			return atomically(() => {
-				const row = getCheckin(checkinId);
-				if (row.deleted_at === null) throw new Error(`Check-in ${checkinId} is not in the Trash`);
-				getHabit(row.habit_id);
-				const dup = db
-					.prepare('SELECT id FROM habit_checkin WHERE habit_id = ? AND date = ? AND deleted_at IS NULL')
-					.get(row.habit_id, row.date);
-				if (dup) throw new Error(`Habit ${row.habit_id} is already checked in on ${row.date}`);
-				db.prepare('UPDATE habit_checkin SET deleted_at = NULL WHERE id = ?').run(checkinId);
-				const after = toCheckin(row);
-				record(actor, 'checkin.restore', 'checkin', checkinId, null, after);
-				return after;
-			});
-		},
-		listDeletedCheckins() {
-			return (
-				db
-					.prepare('SELECT id, habit_id, date FROM habit_checkin WHERE deleted_at IS NOT NULL ORDER BY id')
-					.all() as { id: number; habit_id: number; date: string }[]
-			).map(toCheckin);
+		checkinOn(habitId, date) {
+			const row = db
+				.prepare('SELECT * FROM habit_checkin WHERE habit_id = ? AND date = ?')
+				.get(habitId, localDate(date).toString()) as CheckinRow | undefined;
+			return row ? toCheckin(row) : null;
 		},
 
 		listCheckinDates(habitId, { from, to }) {

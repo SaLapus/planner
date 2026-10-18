@@ -30,24 +30,56 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE task ADD COLUMN due_time TEXT;
 	ALTER TABLE task ADD COLUMN priority TEXT NOT NULL DEFAULT 'none';
 	`,
-	// Habits and Check-ins (#12). Soft delete via deleted_at.
+	// Projects, tags, subtasks (ticket #6)
+	`
+	CREATE TABLE project (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		name        TEXT NOT NULL,
+		archived_at TEXT,
+		created_at  TEXT NOT NULL
+	);
+	ALTER TABLE task ADD COLUMN project_id INTEGER REFERENCES project(id);
+	CREATE TABLE task_tag (
+		task_id INTEGER NOT NULL REFERENCES task(id),
+		tag     TEXT NOT NULL,
+		PRIMARY KEY (task_id, tag)
+	);
+	CREATE INDEX task_tag_by_tag ON task_tag (tag);
+	CREATE TABLE subtask (
+		id       INTEGER PRIMARY KEY AUTOINCREMENT,
+		task_id  INTEGER NOT NULL REFERENCES task(id),
+		title    TEXT NOT NULL,
+		done     INTEGER NOT NULL DEFAULT 0,
+		position INTEGER NOT NULL
+	);
+	`,
+	// Trash: one row per soft-deleted entity, holding its full snapshot until restored or purged.
+	`
+	CREATE TABLE trash (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		entity_type TEXT NOT NULL,
+		entity_id   INTEGER NOT NULL,
+		deleted_at  TEXT NOT NULL,
+		snapshot    TEXT NOT NULL,
+		UNIQUE (entity_type, entity_id)
+	);
+	`,
+	// Habits and Check-ins (#12). Deleting is handled by the generic Trash (rows are removed, snapshot kept in `trash`).
 	`
 	CREATE TABLE habit (
 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
 		title       TEXT NOT NULL,
 		schedule    TEXT NOT NULL,
 		archived_at TEXT,
-		deleted_at  TEXT,
 		created_at  TEXT NOT NULL
 	);
 	CREATE TABLE habit_checkin (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		habit_id   INTEGER NOT NULL REFERENCES habit(id),
 		date       TEXT NOT NULL,
-		deleted_at TEXT,
-		created_at TEXT NOT NULL
+		created_at TEXT NOT NULL,
+		UNIQUE (habit_id, date)
 	);
-	CREATE UNIQUE INDEX habit_checkin_active ON habit_checkin(habit_id, date) WHERE deleted_at IS NULL;
 	`
 ];
 

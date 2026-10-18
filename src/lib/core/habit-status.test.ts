@@ -12,6 +12,12 @@ function checkIn(planner: P, id: number, ...dates: string[]) {
 	for (const date of dates) planner.addCheckin('owner', id, { date });
 }
 
+function removeCheckin(planner: P, actor: 'owner' | 'claude', habitId: number, date: string) {
+	const c = planner.checkinOn(habitId, date);
+	if (!c) throw new Error(`Habit ${habitId} has no check-in on ${date}`);
+	planner.deleteItem(actor, 'checkin', c.id);
+}
+
 describe('check-ins', () => {
 	it('defaults to today in the Home time zone', () => {
 		const { planner } = createTestPlanner({ now: '2026-01-07T09:00:00.000Z' });
@@ -56,18 +62,18 @@ describe('check-ins', () => {
 		const h = gym(planner);
 		checkIn(planner, h.id, '2026-01-05', '2026-01-06');
 
-		planner.removeCheckin('claude', h.id, { date: '2026-01-05' });
+		removeCheckin(planner, 'claude', h.id, '2026-01-05');
 
 		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-06']);
-		expect(() => planner.removeCheckin('owner', h.id, { date: '2026-01-05' })).toThrow(/no check-in/);
-		expect(planner.changeLog().at(-1)).toMatchObject({ actor: 'claude', action: 'checkin.remove' });
+		expect(() => removeCheckin(planner, 'owner', h.id, '2026-01-05')).toThrow(/no check-in/);
+		expect(planner.changeLog().at(-1)).toMatchObject({ actor: 'claude', action: 'checkin.delete' });
 	});
 
 	it('a removed date can be checked in again', () => {
 		const { planner } = createTestPlanner();
 		const h = gym(planner);
 		checkIn(planner, h.id, '2026-01-05');
-		planner.removeCheckin('owner', h.id, { date: '2026-01-05' });
+		removeCheckin(planner, 'owner', h.id, '2026-01-05');
 
 		planner.addCheckin('owner', h.id, { date: '2026-01-05' });
 
@@ -209,49 +215,6 @@ describe('habit status: N per month', () => {
 
 		expect(planner.habitStatus({ period: 'week' }).habits.map((s) => s.habit.title)).toEqual(['Зал', 'Зарядка']);
 		expect(planner.habitStatus({ period: 'month' }).habits.map((s) => s.habit.title)).toEqual(['Отчёт']);
-	});
-});
-
-describe('trash and restore', () => {
-	it('deleting a habit is soft: hidden, restorable, history intact', () => {
-		const { planner } = createTestPlanner();
-		const h = gym(planner);
-		checkIn(planner, h.id, '2026-01-05');
-
-		planner.deleteHabit('claude', h.id);
-
-		expect(planner.listHabits({ includeArchived: true })).toEqual([]);
-		expect(planner.listDeletedHabits().map((x) => x.id)).toEqual([h.id]);
-		expect(() => planner.addCheckin('owner', h.id, {})).toThrow(/not found/);
-
-		planner.restoreHabit('owner', h.id);
-
-		expect(planner.listDeletedHabits()).toEqual([]);
-		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-05']);
-		expect(planner.changeLog().map((e) => e.action).slice(-2)).toEqual(['habit.delete', 'habit.restore']);
-	});
-
-	it('a removed check-in goes to the Trash and can be restored', () => {
-		const { planner } = createTestPlanner();
-		const h = gym(planner);
-		const c = planner.addCheckin('owner', h.id, { date: '2026-01-05' });
-		planner.removeCheckin('owner', h.id, { date: '2026-01-05' });
-		expect(planner.listDeletedCheckins()).toEqual([c]);
-
-		planner.restoreCheckin('owner', c.id);
-
-		expect(planner.listDeletedCheckins()).toEqual([]);
-		expect(planner.habitStatus({}).habits[0].checkins).toEqual(['2026-01-05']);
-	});
-
-	it('refuses to restore a check-in when the date was checked in again meanwhile', () => {
-		const { planner } = createTestPlanner();
-		const h = gym(planner);
-		const c = planner.addCheckin('owner', h.id, { date: '2026-01-05' });
-		planner.removeCheckin('owner', h.id, { date: '2026-01-05' });
-		planner.addCheckin('owner', h.id, { date: '2026-01-05' });
-
-		expect(() => planner.restoreCheckin('owner', c.id)).toThrow(/already/);
 	});
 });
 

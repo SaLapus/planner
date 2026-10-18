@@ -131,29 +131,7 @@
 		</ul>
 	{/if}
 
-	{#if data.trashHabits.length || data.trashCheckins.length}
-		<h2>Корзина</h2>
-		<ul>
-			{#each data.trashHabits as h (h.id)}
-				<li>
-					<span>{h.title}</span>
-					<form method="POST" action="?/restoreHabit" use:enhance>
-						<input type="hidden" name="id" value={h.id} />
-						<button class="link">Восстановить</button>
-					</form>
-				</li>
-			{/each}
-			{#each data.trashCheckins as c (c.id)}
-				<li>
-					<span>Отметка: {c.habitTitle}, {c.date}</span>
-					<form method="POST" action="?/restoreCheckin" use:enhance>
-						<input type="hidden" name="id" value={c.id} />
-						<button class="link">Восстановить</button>
-					</form>
-				</li>
-			{/each}
-		</ul>
-	{/if}
+	<p><a href="/trash">Корзина</a></p>
 </main>
 
 <style>

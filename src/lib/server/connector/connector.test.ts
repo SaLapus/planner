@@ -254,6 +254,9 @@ describe('Task tools over MCP', () => {
 		expect(names).toEqual(
 			expect.arrayContaining(['complete_task', 'create_task', 'list_tasks', 'uncomplete_task'])
 		);
+		expect(names).toEqual(
+			expect.arrayContaining(['delete_item', 'restore_item', 'list_trash', 'list_changes', 'undo_change'])
+		);
 	});
 
 	it('a created Task is visible via list_tasks and logged as actor claude', async () => {
