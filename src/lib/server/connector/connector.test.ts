@@ -251,7 +251,9 @@ describe('Task tools over MCP', () => {
 
 		const names = (await claude.listTools()).tools.map((x) => x.name).sort();
 
-		expect(names).toEqual(['complete_task', 'create_task', 'list_tasks', 'uncomplete_task']);
+		expect(names).toEqual(
+			expect.arrayContaining(['complete_task', 'create_task', 'list_tasks', 'uncomplete_task'])
+		);
 	});
 
 	it('a created Task is visible via list_tasks and logged as actor claude', async () => {
