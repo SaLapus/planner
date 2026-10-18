@@ -3,13 +3,9 @@
 import { fail, type Action } from '@sveltejs/kit';
 import { getPlanner } from '#lib/server/planner.js';
 import type { Actor } from '#lib/core/index.js';
-import { errorText, scheduleFromForm } from './schedule.js';
+import { scheduleFromForm } from './schedule.js';
 import type { Actions, PageServerLoad } from './$types';
-
-function actorOf(locals: App.Locals): Actor {
-	if (!locals.actor) throw new Error('Not authenticated');
-	return locals.actor;
-}
+import { actorOf, errorText } from '#lib/server/request.js';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
