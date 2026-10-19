@@ -19,22 +19,20 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/server": "2.3.1",
     "@sveltejs/adapter-node": "^6.0.0",
     "@sveltejs/kit": "^3.1.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/node": "^26.6.5",
+    "ical-generator": "11.1.2",
     "ical.js": "^2.2.1",
+    "rrule-temporal": "2.2.8",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.7",
+    "timezones-ical-library": "^2.3.2",
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
-    "vitest": "^5.0.5"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/server": "2.3.1",
-    "ical-generator": "11.1.2",
-    "rrule-temporal": "2.2.8",
-    "timezones-ical-library": "^2.3.2",
+    "vitest": "^5.0.5",
     "zod": "^4.6.7"
   }
 }
