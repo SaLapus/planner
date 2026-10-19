@@ -283,10 +283,31 @@ export function createOAuthServer({ db, clock, publicUrl, isOwner }: OAuthDeps) 
 		});
 	}
 
+	/**
+	 * The client id from HTTP Basic auth (RFC 6749 2.3.1: `urlencoded(id):urlencoded(secret)`).
+	 * claude.ai sends it this way; clients are public, so the secret part is ignored.
+	 */
+	function basicClientId(request: Request): string | undefined {
+		const m = /^Basic\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '');
+		if (!m) return undefined;
+		const decoded = Buffer.from(m[1], 'base64').toString('utf8');
+		const colon = decoded.indexOf(':');
+		try {
+			return decodeURIComponent(colon === -1 ? decoded : decoded.slice(0, colon)) || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	async function token(request: Request): Promise<Response> {
 		if (request.method !== 'POST') return oauthError('invalid_request', 'Use POST', 405);
 		const form = new URLSearchParams(await request.text());
-		const client = getClient(form.get('client_id'));
+		const fromHeader = basicClientId(request);
+		const fromBody = form.get('client_id');
+		if (fromHeader && fromBody && fromHeader !== fromBody) {
+			return oauthError('invalid_client', 'client_id in the body and in Basic auth differ', 401);
+		}
+		const client = getClient(fromHeader ?? fromBody);
 		if (!client) return oauthError('invalid_client', 'Unknown client_id', 401);
 		if (!resourceOk(form.get('resource'))) return oauthError('invalid_target', `resource must be ${resource}`);
 
@@ -326,6 +347,19 @@ export function createOAuthServer({ db, clock, publicUrl, isOwner }: OAuthDeps) 
 		return oauthError('unsupported_grant_type', 'Use authorization_code or refresh_token');
 	}
 
+	/**
+	 * Writes refused registration and token requests to the server log, so a failed connector
+	 * setup can be diagnosed with `docker compose logs planner`. The body holds only the OAuth
+	 * error code and description, never a token or code.
+	 */
+	async function logRefusal(path: string, res: Response): Promise<Response> {
+		if (res.status >= 400) {
+			const body = await res.clone().text();
+			console.warn(`OAuth ${path} refused (${res.status}): ${body}`);
+		}
+		return res;
+	}
+
 	// ---- public surface -------------------------------------------------------------------
 
 	return {
@@ -358,13 +392,16 @@ export function createOAuthServer({ db, clock, publicUrl, isOwner }: OAuthDeps) 
 				case '/.well-known/openid-configuration':
 					return authorizationServerMetadata();
 				case '/oauth/register':
-					return request.method === 'POST' ? register(request) : oauthError('invalid_request', 'Use POST', 405);
+					return logRefusal(
+						url.pathname,
+						request.method === 'POST' ? await register(request) : oauthError('invalid_request', 'Use POST', 405)
+					);
 				case '/oauth/authorize':
 					return request.method === 'GET' || request.method === 'POST'
 						? authorize(request, url)
 						: page(405, '<p>Method not allowed.</p>');
 				case '/oauth/token':
-					return token(request);
+					return logRefusal(url.pathname, await token(request));
 			}
 			return undefined;
 		}
