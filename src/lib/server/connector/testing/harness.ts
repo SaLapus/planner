@@ -116,7 +116,7 @@ export function createTestConnector() {
 		};
 		const approve = await fetchImpl(`${ORIGIN}/oauth/authorize`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: await ownerCookie() },
+			headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: await ownerCookie(), origin: ORIGIN },
 			body: new URLSearchParams({ ...params, decision: 'allow' })
 		});
 		const location = new URL(approve.headers.get('location') ?? 'none:');
