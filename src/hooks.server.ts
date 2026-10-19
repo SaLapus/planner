@@ -5,6 +5,7 @@ import type { Handle } from '@sveltejs/kit/hooks';
 import { getAuth } from '#lib/server/auth/instance.js';
 import { isFeedPath } from '#lib/server/feed.js';
 import { getConnector } from '#lib/server/connector/instance.js';
+import { isCrossSiteFormPost } from '#lib/server/csrf.js';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	// The Calendar feed has no login: calendar apps cannot sign in. Its secret URL is the protection,
@@ -15,6 +16,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// (bearer tokens; the authorize step checks the owner session itself), so it goes first.
 	const connectorResponse = await getConnector().handle(event.request);
 	if (connectorResponse) return connectorResponse;
+
+	// Everything else is the UI: refuse forms posted from other sites (SvelteKit's own check is off).
+	if (isCrossSiteFormPost(event.request, event.url.origin)) {
+		return new Response(`Cross-site ${event.request.method} form submissions are forbidden`, { status: 403 });
+	}
 
 	const result = await getAuth().handle(event.request);
 	if (result.type === 'response') return result.response;

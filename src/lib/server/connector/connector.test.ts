@@ -137,6 +137,24 @@ describe('authorize step', () => {
 		expect(new URL(res.headers.get('location')!).searchParams.get('error')).toBe('invalid_request');
 	});
 
+	it('refuses an Allow from the owner that lacks this site as Origin (CSRF)', async () => {
+		const t = createTestConnector();
+		const url = await authorizeUrl(t);
+		for (const origin of [undefined, 'https://evil.example', 'null']) {
+			const res = await t.fetch(`${ORIGIN}/oauth/authorize`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/x-www-form-urlencoded',
+					cookie: await t.ownerCookie(),
+					...(origin ? { origin } : {})
+				},
+				body: new URLSearchParams([...url.searchParams, ['decision', 'allow']])
+			});
+			expect(res.status).toBe(403);
+			expect(res.headers.get('location') ?? '').not.toContain('code=');
+		}
+	});
+
 	it('does not issue a code without an owner session', async () => {
 		const t = createTestConnector();
 		const url = await authorizeUrl(t);
@@ -155,7 +173,7 @@ describe('token endpoint', () => {
 		const clientId = await t.registerClient();
 		const approve = await t.fetch(`${ORIGIN}/oauth/authorize`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: await t.ownerCookie() },
+			headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: await t.ownerCookie(), origin: ORIGIN },
 			body: new URLSearchParams({
 				response_type: 'code',
 				client_id: clientId,

@@ -201,7 +201,9 @@ export function createOAuthServer({ db, clock, publicUrl, isOwner }: OAuthDeps) 
 
 	async function authorize(request: Request, url: URL): Promise<Response> {
 		const post = request.method === 'POST';
-		if (post && request.headers.get('origin') && request.headers.get('origin') !== origin) {
+		// The consent POST acts with the owner's cookie, so it must come from the Planner's own page.
+		// Browsers always send Origin on POST; a missing one is refused too (this path skips the UI CSRF check).
+		if (post && request.headers.get('origin') !== origin) {
 			return page(403, '<p>Cross-site request refused.</p>');
 		}
 		const form = post ? new URLSearchParams(await request.text()) : url.searchParams;
