@@ -7,13 +7,17 @@ WORKDIR /app
 RUN npm install -g pnpm@11.24.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY planner/package.json planner/package.json
+# adapter-node bundles devDependencies into the build but leaves `dependencies` as imports from
+# node_modules, which the final image does not have. So every package the app uses must be a
+# devDependency; a package in `dependencies` would crash the app at start (ERR_MODULE_NOT_FOUND).
+RUN node -e "const d = Object.keys(require('./planner/package.json').dependencies || {}); if (d.length) { console.error('planner/package.json: move to devDependencies (the image has no node_modules): ' + d.join(', ')); process.exit(1); }"
 RUN pnpm install --frozen-lockfile
 COPY planner planner
 RUN pnpm --filter planner build
 
 FROM node:26-slim
 WORKDIR /app
-# The adapter-node build is self-contained: no node_modules needed at runtime.
+# The adapter-node build is self-contained (all packages are devDependencies, see above): no node_modules.
 COPY --from=build /app/planner/build ./build
 COPY --from=build /app/planner/package.json ./package.json
 COPY planner/scripts/backup.mjs ./backup.mjs
