@@ -204,6 +204,48 @@ describe('token endpoint', () => {
 		expect(res.status).toBe(400);
 	});
 
+	it('accepts the client id in HTTP Basic auth instead of the body (how claude.ai sends it)', async () => {
+		const t = createTestConnector();
+		const verifier = 'a'.repeat(50);
+		const { clientId, code } = await codeFor(t, verifier);
+		const basic = (id: string) => `Basic ${Buffer.from(`${encodeURIComponent(id)}:`).toString('base64')}`;
+		const post = (authorization: string, form: Record<string, string>) =>
+			t.fetch(`${ORIGIN}/oauth/token`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/x-www-form-urlencoded', authorization },
+				body: new URLSearchParams(form)
+			});
+
+		const res = await post(basic(clientId), {
+			grant_type: 'authorization_code',
+			redirect_uri: 'http://localhost:33418/callback',
+			code,
+			code_verifier: verifier
+		});
+		expect(res.status).toBe(200);
+		const tokens = await res.json();
+		expect((await (await t.connect(tokens.access_token)).listTools()).tools.length).toBeGreaterThan(0);
+
+		const refreshed = await post(basic(clientId), { grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
+		expect(refreshed.status).toBe(200);
+	});
+
+	it('refuses a client id in the body that differs from the one in Basic auth', async () => {
+		const t = createTestConnector();
+		const { clientId } = await t.authorizeClient();
+		const other = await t.registerClient();
+		const res = await t.fetch(`${ORIGIN}/oauth/token`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/x-www-form-urlencoded',
+				authorization: `Basic ${Buffer.from(`${other}:`).toString('base64')}`
+			},
+			body: new URLSearchParams({ grant_type: 'refresh_token', client_id: clientId, refresh_token: 'x' })
+		});
+		expect(res.status).toBe(401);
+		expect((await res.json()).error).toBe('invalid_client');
+	});
+
 	it('answers invalid_client for an unknown client so Claude re-registers', async () => {
 		const t = createTestConnector();
 		const res = await exchange(t, { grant_type: 'authorization_code', client_id: 'ghost', code: 'x' });
