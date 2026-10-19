@@ -4,7 +4,15 @@
 
 FROM node:26-slim AS build
 WORKDIR /app
-RUN npm install -g pnpm@11.24.0
+# pnpm's standalone installer (what pnpm recommends for Docker). The slim image has
+# no wget/certs, so add them here; this stage is thrown away, so the final image stays lean.
+ENV PNPM_HOME=/pnpm
+ENV PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH"
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=11.24.0 ENV="$HOME/.shrc" SHELL="$(which sh)" sh - \
+ && pnpm --version
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY planner/package.json planner/package.json
 RUN pnpm install --frozen-lockfile
