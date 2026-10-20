@@ -3,6 +3,7 @@
 	// per day, and each column reuses the same EventList component the agenda and day views use,
 	// so Events and Tasks look the same everywhere.
 	import EventList from '../../EventList.svelte';
+	import ScheduleNav from '../../ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -13,11 +14,7 @@
 </svelte:head>
 
 <main>
-	<nav>
-		<a href="/events">Расписание</a>
-		<a href="/events/week/{data.today}">Эта неделя</a>
-		<a href="/events/new" class="add">+ Событие</a>
-	</nav>
+	<ScheduleNav today={data.today} />
 
 	<header>
 		<a href="/events/week/{data.prev}" aria-label="Предыдущая неделя">‹</a>
@@ -45,13 +42,6 @@
 		margin: 1rem auto;
 		padding: 0 1rem;
 		font-family: system-ui, sans-serif;
-	}
-	nav {
-		display: flex;
-		gap: 1rem;
-	}
-	.add {
-		margin-left: auto;
 	}
 	header {
 		display: flex;

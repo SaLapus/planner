@@ -9,6 +9,7 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+	import ScheduleNav from '../events/ScheduleNav.svelte';
 	// `$state` makes a variable "reactive": when it changes, the page parts that use it update.
 	let copied = $state(false);
 
@@ -23,7 +24,7 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/events">← Расписание</a> · <a href="/changes">Журнал изменений</a></nav>
+	<ScheduleNav today={data.today} />
 	<h1>Календарная лента</h1>
 	<p>
 		Ссылка для подписки из Google Calendar, Outlook и других календарей: в них видны события и задачи с блоком времени
