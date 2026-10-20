@@ -90,6 +90,7 @@
 		/>
 		<input type="date" name="dueDate" aria-label="Срок: дата" />
 		<input type="time" name="dueTime" aria-label="Срок: время" />
+		<input type="date" name="startDate" aria-label="Начало" title="Начало" />
 		<select name="priority" aria-label="Приоритет">
 			{#each priorities as [key, label] (key)}
 				<option value={key}>{label}</option>
@@ -119,6 +120,9 @@
 						<span class="title">{task.title}</span>
 						{#if task.dueDate}
 							<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
+						{/if}
+						{#if task.startsLater}
+							<small class="starts" title="Дата начала">▶ {task.startDate}</small>
 						{/if}
 						{#if task.block}
 							<small class="block" title="Блок времени">⏱ {task.block.label}</small>
@@ -151,6 +155,14 @@
 							<input name="title" value={task.title} aria-label="Название" />
 							<input type="date" name="dueDate" value={task.dueDate ?? ''} aria-label="Срок: дата" />
 							<input type="time" name="dueTime" value={task.dueTime ?? ''} aria-label="Срок: время" />
+							<input type="hidden" name="startWas" value={task.startDate} />
+							<input
+								type="date"
+								name="startDate"
+								value={task.startDate}
+								aria-label="Начало"
+								title="Начало (пусто — по умолчанию)"
+							/>
 							<select name="priority" value={task.priority} aria-label="Приоритет">
 								{#each priorities as [key, label] (key)}
 									<option value={key}>{label}</option>
