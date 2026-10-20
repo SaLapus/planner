@@ -1,7 +1,7 @@
 // Agenda: the next two weeks, grouped by day (Home time zone). An Event that spans several
 // days appears under each of them.
 import { getPlanner } from '#lib/server/planner.js';
-import { addDays, dayLabel, toRow } from './format.js';
+import { addDays, dayLabel, toRow } from '../format.js';
 import type { PageServerLoad } from './$types';
 
 const DAYS = 14;
