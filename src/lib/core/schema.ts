@@ -1,11 +1,15 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { defaultStartDate } from './start-date.js';
+
+/** A migration is SQL, or a code step (needs the Home time zone, e.g. a backfill). */
+type Migration = string | ((db: DatabaseSync, homeTimeZone: string) => void);
 
 /**
  * Ordered, append-only list of migrations. To change the schema, add a new
  * entry at the END; never edit an existing one. `PRAGMA user_version` stores
  * how many have already been applied.
  */
-const MIGRATIONS: string[] = [
+const MIGRATIONS: Migration[] = [
 	`
 	CREATE TABLE task (
 		id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,15 +163,33 @@ const MIGRATIONS: string[] = [
 	// "This and following" split as ONE change-log entry: the head keeps a snapshot of the new series (review S1).
 	`
 	ALTER TABLE event ADD COLUMN split_tail TEXT;
+	`,
+	// Start date on a Task (#28): a Home-zone date. Nullable in SQL only because SQLite cannot add a
+	// NOT NULL column without a default; the next step fills every row, and the core always writes it.
 	`
+	ALTER TABLE task ADD COLUMN start_date TEXT;
+	`,
+	// Backfill: the default rule (creation day in the Home zone, or the due date if earlier). Runs once
+	// and writes no change-log entries.
+	(db, homeTimeZone) => {
+		const rows = db.prepare('SELECT id, created_at, due_date FROM task').all() as {
+			id: number;
+			created_at: string;
+			due_date: string | null;
+		}[];
+		const set = db.prepare('UPDATE task SET start_date = ? WHERE id = ?');
+		for (const r of rows) set.run(defaultStartDate(r.created_at, r.due_date, homeTimeZone), r.id);
+	}
 ];
 
-export function migrate(db: DatabaseSync): void {
+export function migrate(db: DatabaseSync, homeTimeZone: string): void {
 	const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
 	for (let v = row.user_version; v < MIGRATIONS.length; v++) {
 		db.exec('BEGIN');
 		try {
-			db.exec(MIGRATIONS[v]);
+			const step = MIGRATIONS[v];
+			if (typeof step === 'string') db.exec(step);
+			else step(db, homeTimeZone);
 			db.exec(`PRAGMA user_version = ${v + 1}`);
 			db.exec('COMMIT');
 		} catch (e) {

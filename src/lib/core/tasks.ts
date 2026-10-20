@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, CoreContext } from './context.js';
+import { clampToDue, defaultStartDate, resolveStartDate } from './start-date.js';
 import { assertProjectOpen, cleanTag } from './organising.js';
 import { normalizeRule, occurrencesBetween, ruleContinuingFrom, type RuleSpec } from './recurrence.js';
 
@@ -46,6 +47,8 @@ export interface Task {
 	dueDate: string | null;
 	/** Home-zone wall-clock time (HH:MM); only set together with dueDate. */
 	dueTime: string | null;
+	/** The day the Task becomes relevant (Home-zone date). Never blank. See `defaultStartDate`. */
+	startDate: string;
 	priority: Priority;
 	/** Planned slot in the day (0..1). Independent of the due date. */
 	timeBlock: TimeBlock | null;
@@ -87,6 +90,8 @@ export interface TaskApi {
 		input: {
 			title: string;
 			due?: DueInput;
+			/** Start date as `YYYY-MM-DD`; omitted or null means the default rule. Must not be after the due date. */
+			start?: string | null;
 			priority?: Priority;
 			timeBlock?: TimeBlockInput;
 			projectId?: number | null;
@@ -100,6 +105,11 @@ export interface TaskApi {
 		changes: {
 			title?: string;
 			due?: DueInput;
+			/**
+			 * Start date as `YYYY-MM-DD`; `null` resets it to the default rule (creation day, or the due date if
+			 * earlier). Changing only the due date to before the Start date pulls the Start date back to it.
+			 */
+			start?: string | null;
 			priority?: Priority;
 			timeBlock?: TimeBlockInput;
 			repeat?: Repeat | null;
@@ -123,6 +133,12 @@ export interface TaskApi {
 	 */
 	tasksIn(list: TaskList): Task[];
 	/**
+	 * The "Все" view, narrowed like `listTasks`. Open Tasks whose Start date is today (Home zone) or
+	 * earlier are `active`; later ones are `notStarted`. Both: due date ascending, timed before date-only,
+	 * priority (high first), creation order; Tasks without a due date LAST. `completed`: newest completion first.
+	 */
+	tasksSplit(filter?: TaskFilter): { active: Task[]; notStarted: Task[]; completed: Task[] };
+	/**
 	 * Case-insensitive title search over all Tasks (done ones included), oldest first, optionally narrowed by
 	 * Project, Tag and a due-date range (`dueFrom`/`dueTo`, inclusive "YYYY-MM-DD"; Tasks without a due date
 	 * never match a date bound). Empty text matches every title, but with no text and no filter nothing is returned.
@@ -137,6 +153,7 @@ interface TaskRow {
 	created_at: string;
 	due_date: string | null;
 	due_time: string | null;
+	start_date: string;
 	priority: Priority;
 	project_id: number | null;
 	block_start: string | null;
@@ -167,6 +184,7 @@ function toTask(db: DatabaseSync, r: TaskRow): Task {
 		createdAt: r.created_at,
 		dueDate: r.due_date,
 		dueTime: r.due_time,
+		startDate: r.start_date,
 		priority: r.priority,
 		timeBlock: r.block_start === null ? null : { start: r.block_start, minutes: r.block_minutes! },
 		projectId: r.project_id,
@@ -282,8 +300,8 @@ export function taskModule({
 			)?.next_id;
 			db.prepare(
 				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				t.id,
 				t.title,
@@ -291,6 +309,8 @@ export function taskModule({
 				t.createdAt,
 				t.dueDate,
 				t.dueTime,
+				// Snapshots from before the Start date existed have none: apply the default rule.
+				t.startDate ?? defaultStartDate(t.createdAt, t.dueDate, homeTimeZone),
 				t.priority,
 				t.projectId,
 				t.timeBlock?.start ?? null,
@@ -390,10 +410,21 @@ export function taskModule({
 		} else if (t.timeBlock) {
 			timeBlock = t.timeBlock;
 		}
+		// Keep the gap between Start date and due date; with no due date, move by the repeat interval.
+		const startOf = Temporal.PlainDate.from(t.startDate);
+		let startDate: string;
+		if (t.dueDate && next.dueDate) {
+			const gap = startOf.until(Temporal.PlainDate.from(t.dueDate), { largestUnit: 'days' }).days;
+			startDate = Temporal.PlainDate.from(next.dueDate).subtract({ days: Math.max(gap, 0) }).toString();
+		} else {
+			// No due date on one side, so this is an "after" repeat (a fixed one always has both dates).
+			const { every, unit } = next.repeat as Extract<Repeat, { type: 'after' }>;
+			startDate = clampToDue(startOf.add({ [`${unit}s`]: every }).toString(), next.dueDate);
+		}
 		const { lastInsertRowid } = db
 			.prepare(
-				`INSERT INTO task (id, title, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id, repeat)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.run(
 				id ?? null,
@@ -401,6 +432,7 @@ export function taskModule({
 				nowIso(),
 				next.dueDate,
 				next.dueTime,
+				startDate,
 				t.priority,
 				t.projectId,
 				timeBlock?.start ?? null,
@@ -491,18 +523,25 @@ export function taskModule({
 			const priority = checkPriority(input.priority ?? 'none');
 			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
 			const repeat = parseRepeat(input.repeat, due !== null);
+			const created = nowIso();
+			const startDate = resolveStartDate(
+				due?.date ?? null,
+				homeTimeZone,
+				input.start == null ? { createdAt: created } : { explicit: input.start }
+			);
 			return atomically(() => {
 				const projectId = input.projectId ?? null;
 				if (projectId !== null) assertProjectOpen(db, projectId);
 				const { lastInsertRowid } = db
 					.prepare(
-						'INSERT INTO task (title, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+						'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 					)
 					.run(
 						title,
-						nowIso(),
+						created,
 						due?.date ?? null,
 						due?.time ?? null,
+						startDate,
 						priority,
 						projectId,
 						block?.start ?? null,
@@ -531,6 +570,15 @@ export function taskModule({
 					dueDate = due?.date ?? null;
 					dueTime = due?.time ?? null;
 				}
+				const startDate = resolveStartDate(
+					dueDate,
+					homeTimeZone,
+					changes.start === null
+						? { createdAt: before.createdAt }
+						: changes.start === undefined
+							? { keep: before.startDate }
+							: { explicit: changes.start }
+				);
 				const priority = checkPriority(changes.priority ?? before.priority);
 				const block =
 					changes.timeBlock === undefined
@@ -541,11 +589,12 @@ export function taskModule({
 					dueDate !== null
 				);
 				db.prepare(
-					'UPDATE task SET title = ?, due_date = ?, due_time = ?, priority = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
+					'UPDATE task SET title = ?, due_date = ?, due_time = ?, start_date = ?, priority = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
 				).run(
 					title,
 					dueDate,
 					dueTime,
+					startDate,
 					priority,
 					block?.start ?? null,
 					block?.minutes ?? null,
@@ -598,6 +647,21 @@ export function taskModule({
 				.filter((t) => t.dueDate !== null)
 				.filter(matches[list])
 				.sort(byDue);
+		},
+		tasksSplit(filter = {}) {
+			const today = homeDate().toString();
+			const all = this.listTasks(filter);
+			// Like `byDue`, but a Task without a due date goes last.
+			const byDueUndatedLast = (a: Task, b: Task) =>
+				Number(a.dueDate === null) - Number(b.dueDate === null) || byDue(a, b);
+			const open = all.filter((t) => t.completedAt === null).sort(byDueUndatedLast);
+			return {
+				active: open.filter((t) => t.startDate <= today),
+				notStarted: open.filter((t) => t.startDate > today),
+				completed: all
+					.filter((t) => t.completedAt !== null)
+					.sort((a, b) => b.completedAt!.localeCompare(a.completedAt!) || b.id - a.id)
+			};
 		},
 		searchTasks(text, filter = {}) {
 			const needle = text.trim().toLowerCase();

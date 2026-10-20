@@ -3,6 +3,7 @@
 // This file only translates form data into core calls; all rules live in the core.
 import { fail } from '@sveltejs/kit';
 import { getPlanner, HOME_TIME_ZONE } from '#lib/server/planner.js';
+import type { Task } from '#lib/core/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { repeatFields, repeatLabel, repeatOf } from './repeat-form.js';
 import { actorOf, errorText } from '#lib/server/request.js';
@@ -17,6 +18,15 @@ function dueOf(form: FormData): string | null {
 	const time = String(form.get('dueTime') ?? '');
 	if (!date) return null;
 	return time ? `${date}T${time}` : date;
+}
+
+// The "Начало" date input: empty means the default Start date (on the edit form: reset to it).
+// On the edit form an untouched input (same as `shownStartDate`) is left out, so moving only the due date
+// earlier pulls the Start date back instead of conflicting with the old one.
+function startDateOf(form: FormData): string | null | undefined {
+	const value = String(form.get('startDate') ?? '');
+	if (form.has('shownStartDate') && value === form.get('shownStartDate')) return undefined;
+	return value || null;
 }
 
 // Time block inputs (date + time + minutes) become `{ start, minutes }`. An empty date or time
@@ -61,11 +71,12 @@ export const load: PageServerLoad = ({ url }) => {
 	const p = url.searchParams.get('project');
 	const tag = url.searchParams.get('tag') ?? undefined;
 	const projectId = p === null ? undefined : p === 'none' ? null : Number(p);
-	let tasks = q
-		? planner.searchTasks(q)
-		: list
-			? planner.tasksIn(list)
-			: planner.listTasks({ projectId, tag });
+	// "Все" without search: the split view (Active / not started / Completed).
+	const splitView = !q && !list;
+	let tasks: Task[] = [];
+	if (q) tasks = planner.searchTasks(q);
+	else if (list) tasks = planner.tasksIn(list);
+	// Search and smart lists don't take project/tag filters themselves; narrow their result here.
 	if (q || list) {
 		tasks = tasks.filter(
 			(t) =>
@@ -73,13 +84,22 @@ export const load: PageServerLoad = ({ url }) => {
 				(tag === undefined || t.tags.includes(tag))
 		);
 	}
+	const today = planner.today();
+	const withDisplayFields = (t: Task) => ({
+		...t,
+		startsLater: t.startDate > today,
+		block: blockFields(t.timeBlock),
+		repeatForm: repeatFields(t.repeat),
+		repeatText: repeatLabel(t.repeat)
+	});
+	const groups = splitView ? planner.tasksSplit({ projectId, tag }) : null;
 	return {
-		tasks: tasks.map((t) => ({
-			...t,
-			block: blockFields(t.timeBlock),
-			repeatForm: repeatFields(t.repeat),
-			repeatText: repeatLabel(t.repeat)
-		})),
+		tasks: tasks.map(withDisplayFields),
+		split: groups && {
+			active: groups.active.map(withDisplayFields),
+			notStarted: groups.notStarted.map(withDisplayFields),
+			completed: groups.completed.map(withDisplayFields)
+		},
 		list,
 		q,
 		projects: planner.listProjects(),
@@ -107,6 +127,7 @@ export const actions: Actions = {
 			getPlanner().createTask(actorOf(locals), {
 				title,
 				due: dueOf(data),
+				start: startDateOf(data),
 				priority: priorityOf(data)
 			});
 		} catch (e) {
@@ -119,6 +140,7 @@ export const actions: Actions = {
 			getPlanner().updateTask(actorOf(locals), Number(data.get('id')), {
 				title: String(data.get('title') ?? ''),
 				due: dueOf(data),
+				start: startDateOf(data),
 				priority: priorityOf(data),
 				timeBlock: blockOf(data)
 			});

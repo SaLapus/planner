@@ -1,5 +1,6 @@
 <script lang="ts">
 	import EventList from '../../EventList.svelte';
+	import ScheduleNav from '../../ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -10,12 +11,7 @@
 </svelte:head>
 
 <main>
-	<nav>
-		<a href="/events">Расписание</a>
-		<a href="/events/day/{data.today}">Сегодня</a>
-		<a href="/events/week/{data.date}">Неделя</a>
-		<a href="/events/new?date={data.date}" class="add">+ Событие</a>
-	</nav>
+	<ScheduleNav today={data.today} date={data.date} />
 
 	<header>
 		<a href="/events/day/{data.prev}" aria-label="Предыдущий день">‹</a>
@@ -36,13 +32,6 @@
 		margin: 1rem auto;
 		padding: 0 1rem;
 		font-family: system-ui, sans-serif;
-	}
-	nav {
-		display: flex;
-		gap: 1rem;
-	}
-	.add {
-		margin-left: auto;
 	}
 	header {
 		display: flex;

@@ -6,6 +6,7 @@
 	//  * After the action finishes, SvelteKit runs `load` again by itself, so the new link
 	//    appears without any extra code.
 	import { enhance } from '$app/forms';
+	import ScheduleNav from '../events/ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -23,7 +24,7 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/events">← Расписание</a> · <a href="/changes">Журнал изменений</a></nav>
+	<ScheduleNav today={data.today} />
 	<h1>Календарная лента</h1>
 	<p>
 		Ссылка для подписки из Google Calendar, Outlook и других календарей: в них видны события и задачи с блоком времени

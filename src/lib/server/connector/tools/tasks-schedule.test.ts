@@ -48,3 +48,12 @@ describe('task scheduling tools', () => {
 		expect((await call('search_tasks', { text: 'МОЛОКО' })).map((x) => x.title)).toEqual(['Молоко']);
 	});
 });
+
+describe('Start date input', () => {
+	it('create_task with an empty start is a readable invalid-date tool error', async () => {
+		const claude = await createTestConnector().connectClaude();
+		const res = await claude.callTool({ name: 'create_task', arguments: { title: 'x', start: '' } });
+		expect(res.isError).toBe(true);
+		expect(JSON.stringify(res.content)).toContain('Invalid start date');
+	});
+});

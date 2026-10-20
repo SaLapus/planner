@@ -18,7 +18,6 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/">← Задачи</a></nav>
 	<h1>Статистика</h1>
 
 	<section>

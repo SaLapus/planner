@@ -52,7 +52,7 @@ export interface Planner
 		SafetyApi {}
 
 export function createPlanner(deps: PlannerDeps): Planner {
-	migrate(deps.db);
+	migrate(deps.db, deps.homeTimeZone);
 	const ctx = createContext(deps);
 	const safety = safetyModule(ctx);
 	const habits = habitModule(ctx, safety);

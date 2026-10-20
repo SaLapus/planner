@@ -5,7 +5,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { actorOf } from '#lib/server/request.js';
 
 export const load: PageServerLoad = ({ url }) => {
-	return { feedUrl: `${url.origin}/feed/${getPlanner().feedSecret()}.ics` };
+	const planner = getPlanner();
+	return { feedUrl: `${url.origin}/feed/${planner.feedSecret()}.ics`, today: planner.today() };
 };
 
 export const actions: Actions = {

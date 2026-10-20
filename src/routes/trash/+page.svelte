@@ -14,7 +14,6 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/">← Задачи</a> · <a href="/changes">Журнал изменений</a></nav>
 	<h1>Корзина</h1>
 	<p class="hint">Удалённое хранится 30 дней, потом стирается навсегда.</p>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}

@@ -1,23 +1,18 @@
 <script lang="ts">
-	import EventList from './EventList.svelte';
+	import EventList from '../EventList.svelte';
+	import ScheduleNav from '../ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 </script>
 
 <svelte:head>
-	<title>Расписание</title>
+	<title>Список</title>
 </svelte:head>
 
 <main>
-	<nav>
-		<a href="/">Задачи</a>
-		<a href="/events/day/{data.today}">День</a>
-		<a href="/events/week/{data.today}">Неделя</a>
-		<a href="/calendar">Лента</a>
-		<a href="/events/new" class="add">+ Событие</a>
-	</nav>
-	<h1>Расписание</h1>
+	<ScheduleNav today={data.today} />
+	<h1>Список</h1>
 
 	{#each data.days as day (day.date)}
 		<section>
@@ -40,14 +35,6 @@
 		margin: 1rem auto;
 		padding: 0 1rem;
 		font-family: system-ui, sans-serif;
-	}
-	nav {
-		display: flex;
-		gap: 1rem;
-		align-items: center;
-	}
-	.add {
-		margin-left: auto;
 	}
 	h2 {
 		font-size: 1rem;
