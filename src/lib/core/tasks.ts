@@ -421,6 +421,18 @@ export function taskModule({
 		} else if (t.timeBlock) {
 			timeBlock = t.timeBlock;
 		}
+		// Keep the gap between Start date and due date; with no due date, move by the repeat interval.
+		const startOf = Temporal.PlainDate.from(t.startDate);
+		let startDate: string;
+		if (t.dueDate && next.dueDate) {
+			const gap = startOf.until(Temporal.PlainDate.from(t.dueDate), { largestUnit: 'days' }).days;
+			startDate = Temporal.PlainDate.from(next.dueDate).subtract({ days: Math.max(gap, 0) }).toString();
+		} else if (t.repeat?.type === 'after') {
+			startDate = startOf.add({ [`${t.repeat.unit}s`]: t.repeat.every }).toString();
+			if (next.dueDate && startDate > next.dueDate) startDate = next.dueDate;
+		} else {
+			startDate = defaultStartDate(nowIso(), next.dueDate, homeTimeZone);
+		}
 		const { lastInsertRowid } = db
 			.prepare(
 				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat)
@@ -432,7 +444,7 @@ export function taskModule({
 				nowIso(),
 				next.dueDate,
 				next.dueTime,
-				defaultStartDate(nowIso(), next.dueDate, homeTimeZone),
+				startDate,
 				t.priority,
 				t.projectId,
 				timeBlock?.start ?? null,
