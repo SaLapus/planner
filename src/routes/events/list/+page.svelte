@@ -1,18 +1,18 @@
 <script lang="ts">
-	import EventList from './EventList.svelte';
-	import ScheduleNav from './ScheduleNav.svelte';
+	import EventList from '../EventList.svelte';
+	import ScheduleNav from '../ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 </script>
 
 <svelte:head>
-	<title>Расписание</title>
+	<title>Список</title>
 </svelte:head>
 
 <main>
 	<ScheduleNav today={data.today} />
-	<h1>Расписание</h1>
+	<h1>Список</h1>
 
 	{#each data.days as day (day.date)}
 		<section>
