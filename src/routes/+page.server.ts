@@ -3,6 +3,7 @@
 // This file only translates form data into core calls; all rules live in the core.
 import { fail } from '@sveltejs/kit';
 import { getPlanner, HOME_TIME_ZONE } from '#lib/server/planner.js';
+import type { Task } from '#lib/core/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { repeatFields, repeatLabel, repeatOf } from './repeat-form.js';
 import { actorOf, errorText } from '#lib/server/request.js';
@@ -70,7 +71,11 @@ export const load: PageServerLoad = ({ url }) => {
 	const p = url.searchParams.get('project');
 	const tag = url.searchParams.get('tag') ?? undefined;
 	const projectId = p === null ? undefined : p === 'none' ? null : Number(p);
-	let tasks = q
+	// "Все" without search: the split view (Active / not started / Completed).
+	const splitView = !q && !list;
+	let tasks = splitView
+		? []
+		: q
 		? planner.searchTasks(q)
 		: list
 			? planner.tasksIn(list)
@@ -83,14 +88,21 @@ export const load: PageServerLoad = ({ url }) => {
 		);
 	}
 	const today = Temporal.Now.plainDateISO(HOME_TIME_ZONE).toString();
+	const view = (t: Task) => ({
+		...t,
+		startsLater: t.startDate > today,
+		block: blockFields(t.timeBlock),
+		repeatForm: repeatFields(t.repeat),
+		repeatText: repeatLabel(t.repeat)
+	});
+	const parts = splitView ? planner.tasksSplit({ projectId, tag }) : null;
 	return {
-		tasks: tasks.map((t) => ({
-			...t,
-			startsLater: t.startDate > today,
-			block: blockFields(t.timeBlock),
-			repeatForm: repeatFields(t.repeat),
-			repeatText: repeatLabel(t.repeat)
-		})),
+		tasks: tasks.map(view),
+		split: parts && {
+			active: parts.active.map(view),
+			notStarted: parts.notStarted.map(view),
+			completed: parts.completed.map(view)
+		},
 		list,
 		q,
 		projects: planner.listProjects(),

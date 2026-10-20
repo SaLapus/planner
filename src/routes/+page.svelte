@@ -40,6 +40,7 @@
 		const qs = params.toString();
 		return qs ? `/?${qs}` : '/';
 	}
+	type Task = PageProps['data']['tasks'][number];
 </script>
 
 <svelte:head>
@@ -100,180 +101,215 @@
 	</form>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
 
-	{#if data.tasks.length === 0}
+	{#snippet taskItem(task: Task)}
+			<li id="task-{task.id}" class:done={task.completedAt !== null}>
+				<div class="row">
+					<form method="POST" action="?/toggle" use:enhance>
+						<input type="hidden" name="id" value={task.id} />
+						<input type="hidden" name="done" value={task.completedAt === null} />
+						<button
+							class="check"
+							aria-label={task.completedAt === null ? 'Выполнить' : 'Вернуть в работу'}
+						>
+							{task.completedAt === null ? '○' : '✓'}
+						</button>
+					</form>
+					<span class="title">{task.title}</span>
+					{#if task.dueDate}
+						<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
+					{/if}
+					{#if task.startsLater}
+						<small class="starts" title="Дата начала">▶ {task.startDate}</small>
+					{/if}
+					{#if task.block}
+						<small class="block" title="Блок времени">⏱ {task.block.label}</small>
+					{/if}
+					{#if task.repeat}
+						<small class="repeat" title="Повторение">🔁 {task.repeatText}</small>
+					{/if}
+					{#if task.priority !== 'none'}
+						<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
+					{/if}
+					{#if task.projectId !== null}
+						<a class="badge" href="/?project={task.projectId}">
+							{data.allProjects.find((p) => p.id === task.projectId)?.name}
+						</a>
+					{/if}
+					{#each task.tags as tag (tag)}
+						<a class="badge tag" href="/?tag={encodeURIComponent(tag)}">#{tag}</a>
+					{/each}
+					{#if task.subtasks.length > 0}
+						<small>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</small>
+					{/if}
+				</div>
+
+				<!-- <details> is built-in HTML: click the summary to show or hide the content inside. -->
+				<details>
+					<summary aria-label="Подробнее">✎ Подробнее</summary>
+
+					<form method="POST" action="?/edit" use:enhance class="edit">
+						<input type="hidden" name="id" value={task.id} />
+						<input name="title" value={task.title} aria-label="Название" />
+						<input type="date" name="dueDate" value={task.dueDate ?? ''} aria-label="Срок: дата" />
+						<input type="time" name="dueTime" value={task.dueTime ?? ''} aria-label="Срок: время" />
+						<input type="hidden" name="startWas" value={task.startDate} />
+						<input
+							type="date"
+							name="startDate"
+							value={task.startDate}
+							aria-label="Начало"
+							title="Начало (пусто — по умолчанию)"
+						/>
+						<select name="priority" value={task.priority} aria-label="Приоритет">
+							{#each priorities as [key, label] (key)}
+								<option value={key}>{label}</option>
+							{/each}
+						</select>
+						<!-- Time block: fill date and time to plan the task into the calendar; empty them to remove the block. -->
+						<fieldset class="block-fields">
+							<legend>Блок времени (в расписании)</legend>
+							<input type="date" name="blockDate" value={task.block?.date ?? ''} aria-label="Блок: дата" />
+							<input type="time" name="blockTime" value={task.block?.time ?? ''} aria-label="Блок: начало" />
+							<input
+								type="number"
+								name="blockMinutes"
+								min="1"
+								max="1440"
+								value={task.block?.minutes ?? 60}
+								aria-label="Блок: минут"
+							/> мин
+						</fieldset>
+						<button>Сохранить</button>
+					</form>
+
+					<!-- Repetition: its own form. "bind:value" is not needed; the select is read when the form is sent. -->
+					<form method="POST" action="?/setRepeat" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<select name="repeatKind" value={task.repeatForm.kind} aria-label="Повторение">
+							<option value="none">Не повторять</option>
+							<option value="fixed">По расписанию (от срока)</option>
+							<option value="after">После выполнения</option>
+							{#if task.repeatForm.kind === 'custom'}
+								<option value="custom">Особое правило (не менять)</option>
+							{/if}
+						</select>
+						<input
+							type="number"
+							name="repeatEvery"
+							min="1"
+							max="999"
+							value={task.repeatForm.every}
+							aria-label="Повторять: каждые"
+						/>
+						<select name="repeatUnit" value={task.repeatForm.unit} aria-label="Единица">
+							<option value="day">дней</option>
+							<option value="week">недель</option>
+							<option value="month">месяцев</option>
+							<option value="year">лет</option>
+						</select>
+						<button>Повторение</button>
+					</form>
+
+					<ul class="subtasks">
+						{#each task.subtasks as sub, i (sub.id)}
+							<li class:done={sub.done}>
+								<form method="POST" action="?/toggleSubtask" use:enhance>
+									<input type="hidden" name="id" value={task.id} />
+									<input type="hidden" name="subtaskId" value={sub.id} />
+									<input type="hidden" name="done" value={!sub.done} />
+									<button class="check" aria-label={sub.done ? 'Снять отметку' : 'Отметить'}>
+										{sub.done ? '☑' : '☐'}
+									</button>
+								</form>
+								<span>{sub.title}</span>
+								<form method="POST" action="?/moveSubtask" use:enhance>
+									<input type="hidden" name="id" value={task.id} />
+									<input type="hidden" name="subtaskId" value={sub.id} />
+									<button name="dir" value="-1" disabled={i === 0} aria-label="Выше">↑</button>
+									<button name="dir" value="1" disabled={i === task.subtasks.length - 1} aria-label="Ниже">↓</button>
+								</form>
+								<form method="POST" action="?/removeSubtask" use:enhance>
+									<input type="hidden" name="id" value={task.id} />
+									<input type="hidden" name="subtaskId" value={sub.id} />
+									<button aria-label="Удалить подзадачу">✕</button>
+								</form>
+							</li>
+						{/each}
+					</ul>
+					<form method="POST" action="?/addSubtask" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<input name="title" placeholder="Новая подзадача…" autocomplete="off" aria-label="Подзадача" />
+						<button>+</button>
+					</form>
+
+					<form method="POST" action="?/setProject" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<select name="projectId" aria-label="Проект" value={task.projectId ?? ''}>
+							<option value="">Без проекта</option>
+							{#each data.projects as p (p.id)}
+								<option value={p.id}>{p.name}</option>
+							{/each}
+						</select>
+						<button>Сохранить</button>
+					</form>
+
+					<form method="POST" action="?/addTag" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<input name="tag" placeholder="Новый тег…" autocomplete="off" aria-label="Тег" />
+						<button>+</button>
+					</form>
+					{#each task.tags as tag (tag)}
+						<form method="POST" action="?/removeTag" use:enhance class="inline">
+							<input type="hidden" name="id" value={task.id} />
+							<input type="hidden" name="tag" value={tag} />
+							<button aria-label="Убрать тег {tag}">#{tag} ✕</button>
+						</form>
+					{/each}
+				</details>
+				<form method="POST" action="?/delete" use:enhance class="del">
+					<input type="hidden" name="id" value={task.id} />
+					<button aria-label="Удалить в корзину" title="В корзину">🗑</button>
+				</form>
+			</li>
+	{/snippet}
+
+	{#if data.split}
+		{@const { active, notStarted, completed } = data.split}
+		{#if active.length + notStarted.length + completed.length === 0}
+			<p class="empty">Пока нет задач.</p>
+		{/if}
+		{#if active.length > 0}
+			<h2>Активные</h2>
+			<ul>
+				{#each active as task (task.id)}
+					{@render taskItem(task)}
+				{/each}
+			</ul>
+			<hr class="divider" />
+		{/if}
+		{#if notStarted.length > 0}
+			<ul>
+				{#each notStarted as task (task.id)}
+					{@render taskItem(task)}
+				{/each}
+			</ul>
+		{/if}
+		{#if completed.length > 0}
+			<details class="completed">
+				<summary>Выполненные ({completed.length})</summary>
+				<ul>
+					{#each completed as task (task.id)}
+						{@render taskItem(task)}
+					{/each}
+				</ul>
+			</details>
+		{/if}
+	{:else if data.tasks.length === 0}
 		<p class="empty">Пока нет задач.</p>
 	{:else}
 		<ul>
 			{#each data.tasks as task (task.id)}
-				<li id="task-{task.id}" class:done={task.completedAt !== null}>
-					<div class="row">
-						<form method="POST" action="?/toggle" use:enhance>
-							<input type="hidden" name="id" value={task.id} />
-							<input type="hidden" name="done" value={task.completedAt === null} />
-							<button
-								class="check"
-								aria-label={task.completedAt === null ? 'Выполнить' : 'Вернуть в работу'}
-							>
-								{task.completedAt === null ? '○' : '✓'}
-							</button>
-						</form>
-						<span class="title">{task.title}</span>
-						{#if task.dueDate}
-							<small class="due">{task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}</small>
-						{/if}
-						{#if task.startsLater}
-							<small class="starts" title="Дата начала">▶ {task.startDate}</small>
-						{/if}
-						{#if task.block}
-							<small class="block" title="Блок времени">⏱ {task.block.label}</small>
-						{/if}
-						{#if task.repeat}
-							<small class="repeat" title="Повторение">🔁 {task.repeatText}</small>
-						{/if}
-						{#if task.priority !== 'none'}
-							<small class="prio {task.priority}">{priorityLabel[task.priority]}</small>
-						{/if}
-						{#if task.projectId !== null}
-							<a class="badge" href="/?project={task.projectId}">
-								{data.allProjects.find((p) => p.id === task.projectId)?.name}
-							</a>
-						{/if}
-						{#each task.tags as tag (tag)}
-							<a class="badge tag" href="/?tag={encodeURIComponent(tag)}">#{tag}</a>
-						{/each}
-						{#if task.subtasks.length > 0}
-							<small>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</small>
-						{/if}
-					</div>
-
-					<!-- <details> is built-in HTML: click the summary to show or hide the content inside. -->
-					<details>
-						<summary aria-label="Подробнее">✎ Подробнее</summary>
-
-						<form method="POST" action="?/edit" use:enhance class="edit">
-							<input type="hidden" name="id" value={task.id} />
-							<input name="title" value={task.title} aria-label="Название" />
-							<input type="date" name="dueDate" value={task.dueDate ?? ''} aria-label="Срок: дата" />
-							<input type="time" name="dueTime" value={task.dueTime ?? ''} aria-label="Срок: время" />
-							<input type="hidden" name="startWas" value={task.startDate} />
-							<input
-								type="date"
-								name="startDate"
-								value={task.startDate}
-								aria-label="Начало"
-								title="Начало (пусто — по умолчанию)"
-							/>
-							<select name="priority" value={task.priority} aria-label="Приоритет">
-								{#each priorities as [key, label] (key)}
-									<option value={key}>{label}</option>
-								{/each}
-							</select>
-							<!-- Time block: fill date and time to plan the task into the calendar; empty them to remove the block. -->
-							<fieldset class="block-fields">
-								<legend>Блок времени (в расписании)</legend>
-								<input type="date" name="blockDate" value={task.block?.date ?? ''} aria-label="Блок: дата" />
-								<input type="time" name="blockTime" value={task.block?.time ?? ''} aria-label="Блок: начало" />
-								<input
-									type="number"
-									name="blockMinutes"
-									min="1"
-									max="1440"
-									value={task.block?.minutes ?? 60}
-									aria-label="Блок: минут"
-								/> мин
-							</fieldset>
-							<button>Сохранить</button>
-						</form>
-
-						<!-- Repetition: its own form. "bind:value" is not needed; the select is read when the form is sent. -->
-						<form method="POST" action="?/setRepeat" use:enhance class="inline">
-							<input type="hidden" name="id" value={task.id} />
-							<select name="repeatKind" value={task.repeatForm.kind} aria-label="Повторение">
-								<option value="none">Не повторять</option>
-								<option value="fixed">По расписанию (от срока)</option>
-								<option value="after">После выполнения</option>
-								{#if task.repeatForm.kind === 'custom'}
-									<option value="custom">Особое правило (не менять)</option>
-								{/if}
-							</select>
-							<input
-								type="number"
-								name="repeatEvery"
-								min="1"
-								max="999"
-								value={task.repeatForm.every}
-								aria-label="Повторять: каждые"
-							/>
-							<select name="repeatUnit" value={task.repeatForm.unit} aria-label="Единица">
-								<option value="day">дней</option>
-								<option value="week">недель</option>
-								<option value="month">месяцев</option>
-								<option value="year">лет</option>
-							</select>
-							<button>Повторение</button>
-						</form>
-
-						<ul class="subtasks">
-							{#each task.subtasks as sub, i (sub.id)}
-								<li class:done={sub.done}>
-									<form method="POST" action="?/toggleSubtask" use:enhance>
-										<input type="hidden" name="id" value={task.id} />
-										<input type="hidden" name="subtaskId" value={sub.id} />
-										<input type="hidden" name="done" value={!sub.done} />
-										<button class="check" aria-label={sub.done ? 'Снять отметку' : 'Отметить'}>
-											{sub.done ? '☑' : '☐'}
-										</button>
-									</form>
-									<span>{sub.title}</span>
-									<form method="POST" action="?/moveSubtask" use:enhance>
-										<input type="hidden" name="id" value={task.id} />
-										<input type="hidden" name="subtaskId" value={sub.id} />
-										<button name="dir" value="-1" disabled={i === 0} aria-label="Выше">↑</button>
-										<button name="dir" value="1" disabled={i === task.subtasks.length - 1} aria-label="Ниже">↓</button>
-									</form>
-									<form method="POST" action="?/removeSubtask" use:enhance>
-										<input type="hidden" name="id" value={task.id} />
-										<input type="hidden" name="subtaskId" value={sub.id} />
-										<button aria-label="Удалить подзадачу">✕</button>
-									</form>
-								</li>
-							{/each}
-						</ul>
-						<form method="POST" action="?/addSubtask" use:enhance class="inline">
-							<input type="hidden" name="id" value={task.id} />
-							<input name="title" placeholder="Новая подзадача…" autocomplete="off" aria-label="Подзадача" />
-							<button>+</button>
-						</form>
-
-						<form method="POST" action="?/setProject" use:enhance class="inline">
-							<input type="hidden" name="id" value={task.id} />
-							<select name="projectId" aria-label="Проект" value={task.projectId ?? ''}>
-								<option value="">Без проекта</option>
-								{#each data.projects as p (p.id)}
-									<option value={p.id}>{p.name}</option>
-								{/each}
-							</select>
-							<button>Сохранить</button>
-						</form>
-
-						<form method="POST" action="?/addTag" use:enhance class="inline">
-							<input type="hidden" name="id" value={task.id} />
-							<input name="tag" placeholder="Новый тег…" autocomplete="off" aria-label="Тег" />
-							<button>+</button>
-						</form>
-						{#each task.tags as tag (tag)}
-							<form method="POST" action="?/removeTag" use:enhance class="inline">
-								<input type="hidden" name="id" value={task.id} />
-								<input type="hidden" name="tag" value={tag} />
-								<button aria-label="Убрать тег {tag}">#{tag} ✕</button>
-							</form>
-						{/each}
-					</details>
-					<form method="POST" action="?/delete" use:enhance class="del">
-						<input type="hidden" name="id" value={task.id} />
-						<button aria-label="Удалить в корзину" title="В корзину">🗑</button>
-					</form>
-				</li>
+				{@render taskItem(task)}
 			{/each}
 		</ul>
 	{/if}
@@ -405,6 +441,14 @@
 	}
 	.error {
 		color: #b00020;
+	}
+	.divider {
+		border: none;
+		border-top: 1px solid #bbb;
+		margin: 0.5rem 0;
+	}
+	.completed {
+		margin-left: 0;
 	}
 	.empty {
 		color: #888;
