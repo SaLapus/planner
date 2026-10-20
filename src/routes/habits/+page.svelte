@@ -29,7 +29,6 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/">← Задачи</a></nav>
 	<h1>Привычки</h1>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
 
