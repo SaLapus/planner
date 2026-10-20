@@ -27,7 +27,7 @@
 </svelte:head>
 
 <main>
-	<a href="/events">‹ Расписание</a>
+	<a href="/events/list">‹ Список</a>
 	<h1>Событие</h1>
 	{#if data.event.recurrence}
 		<p class="rule">Повторяется: {describeRule(data.event.recurrence, data.event.timeZone)}</p>
