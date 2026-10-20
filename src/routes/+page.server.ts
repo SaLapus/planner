@@ -21,11 +21,11 @@ function dueOf(form: FormData): string | null {
 }
 
 // The "Начало" date input: empty means the default Start date (on the edit form: reset to it).
-// On the edit form an untouched input (same as `startWas`) is left out, so moving only the due date
+// On the edit form an untouched input (same as `shownStartDate`) is left out, so moving only the due date
 // earlier pulls the Start date back instead of conflicting with the old one.
-function startOf(form: FormData): string | null | undefined {
+function startDateOf(form: FormData): string | null | undefined {
 	const value = String(form.get('startDate') ?? '');
-	if (form.has('startWas') && value === form.get('startWas')) return undefined;
+	if (form.has('shownStartDate') && value === form.get('shownStartDate')) return undefined;
 	return value || null;
 }
 
@@ -73,13 +73,10 @@ export const load: PageServerLoad = ({ url }) => {
 	const projectId = p === null ? undefined : p === 'none' ? null : Number(p);
 	// "Все" without search: the split view (Active / not started / Completed).
 	const splitView = !q && !list;
-	let tasks = splitView
-		? []
-		: q
-		? planner.searchTasks(q)
-		: list
-			? planner.tasksIn(list)
-			: planner.listTasks({ projectId, tag });
+	let tasks: Task[] = [];
+	if (q) tasks = planner.searchTasks(q);
+	else if (list) tasks = planner.tasksIn(list);
+	// Search and smart lists don't take project/tag filters themselves; narrow their result here.
 	if (q || list) {
 		tasks = tasks.filter(
 			(t) =>
@@ -87,21 +84,21 @@ export const load: PageServerLoad = ({ url }) => {
 				(tag === undefined || t.tags.includes(tag))
 		);
 	}
-	const today = Temporal.Now.plainDateISO(HOME_TIME_ZONE).toString();
-	const view = (t: Task) => ({
+	const today = planner.today();
+	const withDisplayFields = (t: Task) => ({
 		...t,
 		startsLater: t.startDate > today,
 		block: blockFields(t.timeBlock),
 		repeatForm: repeatFields(t.repeat),
 		repeatText: repeatLabel(t.repeat)
 	});
-	const parts = splitView ? planner.tasksSplit({ projectId, tag }) : null;
+	const groups = splitView ? planner.tasksSplit({ projectId, tag }) : null;
 	return {
-		tasks: tasks.map(view),
-		split: parts && {
-			active: parts.active.map(view),
-			notStarted: parts.notStarted.map(view),
-			completed: parts.completed.map(view)
+		tasks: tasks.map(withDisplayFields),
+		split: groups && {
+			active: groups.active.map(withDisplayFields),
+			notStarted: groups.notStarted.map(withDisplayFields),
+			completed: groups.completed.map(withDisplayFields)
 		},
 		list,
 		q,
@@ -130,7 +127,7 @@ export const actions: Actions = {
 			getPlanner().createTask(actorOf(locals), {
 				title,
 				due: dueOf(data),
-				start: startOf(data),
+				start: startDateOf(data),
 				priority: priorityOf(data)
 			});
 		} catch (e) {
@@ -143,7 +140,7 @@ export const actions: Actions = {
 			getPlanner().updateTask(actorOf(locals), Number(data.get('id')), {
 				title: String(data.get('title') ?? ''),
 				due: dueOf(data),
-				start: startOf(data),
+				start: startDateOf(data),
 				priority: priorityOf(data),
 				timeBlock: blockOf(data)
 			});

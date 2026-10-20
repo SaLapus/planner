@@ -152,7 +152,7 @@
 						<input name="title" value={task.title} aria-label="Название" />
 						<input type="date" name="dueDate" value={task.dueDate ?? ''} aria-label="Срок: дата" />
 						<input type="time" name="dueTime" value={task.dueTime ?? ''} aria-label="Срок: время" />
-						<input type="hidden" name="startWas" value={task.startDate} />
+						<input type="hidden" name="shownStartDate" value={task.startDate} />
 						<input
 							type="date"
 							name="startDate"
