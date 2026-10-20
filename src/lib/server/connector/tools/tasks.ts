@@ -6,6 +6,11 @@ const dueSchema = z
 	.describe(
 		'ISO 8601: "2026-03-30" (date only = local date in the Home time zone), "2026-03-30T10:00" (Home-zone time), or with Z/offset'
 	);
+const startSchema = z
+	.string()
+	.describe(
+		'Start date, a local date "2026-03-30" (Home time zone). Before it the Task is not Active (it is hidden from the Active list, not late). Must not be after the due date. If omitted, the default rule applies (the day the Task was created, or its due date if that is earlier)'
+	);
 const prioritySchema = z.enum(['none', 'low', 'medium', 'high']);
 const timeBlockSchema = z
 	.object({
@@ -41,10 +46,11 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'create_task',
 		{
 			description:
-				'Create a Task (a to-do item) with a title and optional due date/time, priority, project and tags. Text is stored exactly as given, in any language. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
+				'Create a Task (a to-do item) with a title and optional due date/time, priority, project and tags. Text is stored exactly as given, in any language. A Task is Active once its Start date (startDate) has arrived; pass start to create one that starts later. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
 			inputSchema: z.object({
 				title: z.string().describe('What needs to be done'),
 				due: dueSchema.optional(),
+				start: startSchema.optional(),
 				priority: prioritySchema.optional(),
 				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
@@ -52,10 +58,11 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				repeat: repeatSchema.optional()
 			})
 		},
-		reply(({ title, due, priority, time_block, project_id, tags, repeat }) =>
+		reply(({ title, due, start, priority, time_block, project_id, tags, repeat }) =>
 			planner.createTask(actor, {
 				title,
 				due,
+				start,
 				priority,
 				timeBlock: time_block,
 				projectId: project_id,
@@ -69,11 +76,12 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'update_task',
 		{
 			description:
-				'Change a Task\'s title, due date/time, priority, Time block or repetition. Only the fields you pass change; pass due: null to remove the due date, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
+				'Change a Task\'s title, due date/time, Start date, priority, Time block or repetition. Only the fields you pass change; pass start: null to reset the Start date to the default rule (postponing a Task = moving start later), due: null to remove the due date, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
 			inputSchema: z.object({
 				id: z.number().int().describe('Task id from list_tasks'),
 				title: z.string().optional(),
 				due: dueSchema.nullable().optional(),
+				start: startSchema.nullable().optional(),
 				priority: prioritySchema.optional(),
 				time_block: timeBlockSchema.nullable().optional(),
 				repeat: repeatSchema.nullable().optional()
@@ -88,7 +96,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'get_task_list',
 		{
 			description:
-				'Open Tasks in a smart list, computed from the current time in the owner\'s Home time zone, ordered by due date, due time, then priority (high first). today: due today and not yet late; overdue: due date or time has passed; upcoming: due after today; inbox: no due date.',
+				'Open Tasks in a smart list, computed from the current time in the owner\'s Home time zone, ordered by due date, due time, then priority (high first). today: due today and not yet late; overdue: due date or time has passed; upcoming: due after today; inbox: no due date. Each Task has a startDate; it is Active once that date has arrived.',
 			inputSchema: z.object({ list: z.enum(['today', 'upcoming', 'overdue', 'inbox']) })
 		},
 		reply(({ list }) => planner.tasksIn(list))
@@ -116,7 +124,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'list_tasks',
 		{
 			description:
-				'List Tasks, oldest first, optionally filtered by project_id (null = no project) and/or tag. A Task with completedAt set is done. Tasks of archived Projects are included.',
+				'List Tasks, oldest first, optionally filtered by project_id (null = no project) and/or tag. A Task with completedAt set is done. Tasks of archived Projects are included. Each Task has a startDate; it is Active once that date has arrived.',
 			inputSchema: z.object({
 				project_id: z.number().int().nullable().optional(),
 				tag: z.string().optional()

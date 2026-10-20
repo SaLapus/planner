@@ -17,7 +17,7 @@
 </svelte:head>
 
 <main>
-	<a href="/events">‹ Расписание</a>
+	<a href="/events/list">‹ Список</a>
 	<h1>Новое событие</h1>
 
 	<form method="POST">
