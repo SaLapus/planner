@@ -11,7 +11,7 @@
 </svelte:head>
 
 <main>
-	<ScheduleNav today={data.today} />
+	<ScheduleNav today={data.today} date={data.date} />
 
 	<header>
 		<a href="/events/day/{data.prev}" aria-label="Предыдущий день">‹</a>

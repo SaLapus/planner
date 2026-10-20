@@ -1,9 +1,9 @@
 <script lang="ts">
 	// The Schedule section's second row, shared by every Schedule page.
 	import { page } from '$app/state';
-	import { scheduleItems } from './schedule-nav.js';
+	import { newEventHref, scheduleItems } from './schedule-nav.js';
 
-	let { today }: { today: string } = $props();
+	let { today, date }: { today: string; date?: string } = $props();
 
 	let items = $derived(scheduleItems(today, page.url.pathname));
 </script>
@@ -12,7 +12,7 @@
 	{#each items as item (item.href)}
 		<a href={item.href} aria-current={item.current ? 'page' : undefined}>{item.label}</a>
 	{/each}
-	<a href="/events/new" class="add">+ Событие</a>
+	<a href={newEventHref(date)} class="add">+ Событие</a>
 </nav>
 
 <style>

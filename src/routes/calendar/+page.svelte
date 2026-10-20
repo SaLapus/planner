@@ -6,10 +6,10 @@
 	//  * After the action finishes, SvelteKit runs `load` again by itself, so the new link
 	//    appears without any extra code.
 	import { enhance } from '$app/forms';
+	import ScheduleNav from '../events/ScheduleNav.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	import ScheduleNav from '../events/ScheduleNav.svelte';
 	// `$state` makes a variable "reactive": when it changes, the page parts that use it update.
 	let copied = $state(false);
 

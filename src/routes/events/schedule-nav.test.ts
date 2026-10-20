@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scheduleItems } from './schedule-nav.js';
+import { newEventHref, scheduleItems } from './schedule-nav.js';
 
 const TODAY = '2026-03-11';
 
@@ -27,5 +27,12 @@ describe('Schedule second row', () => {
 	it('highlights nothing on other Schedule pages', () => {
 		expect(current('/events/new')).toEqual([]);
 		expect(current('/events/5')).toEqual([]);
+	});
+});
+
+describe('"+ Событие" link', () => {
+	it('is plain by default and prefilled with a day when one is in context', () => {
+		expect(newEventHref()).toBe('/events/new');
+		expect(newEventHref('2026-03-02')).toBe('/events/new?date=2026-03-02');
 	});
 });
