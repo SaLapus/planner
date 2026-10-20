@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, CoreContext } from './context.js';
+import { defaultStartDate } from './schema.js';
 import { assertProjectOpen, cleanTag } from './organising.js';
 import { normalizeRule, occurrencesBetween, ruleContinuingFrom, type RuleSpec } from './recurrence.js';
 
@@ -46,6 +47,8 @@ export interface Task {
 	dueDate: string | null;
 	/** Home-zone wall-clock time (HH:MM); only set together with dueDate. */
 	dueTime: string | null;
+	/** The day the Task becomes relevant (Home-zone date). Never blank. See `defaultStartDate`. */
+	startDate: string;
 	priority: Priority;
 	/** Planned slot in the day (0..1). Independent of the due date. */
 	timeBlock: TimeBlock | null;
@@ -87,6 +90,8 @@ export interface TaskApi {
 		input: {
 			title: string;
 			due?: DueInput;
+			/** Start date as `YYYY-MM-DD`; omitted or null means the default rule. Must not be after the due date. */
+			start?: string | null;
 			priority?: Priority;
 			timeBlock?: TimeBlockInput;
 			projectId?: number | null;
@@ -100,6 +105,11 @@ export interface TaskApi {
 		changes: {
 			title?: string;
 			due?: DueInput;
+			/**
+			 * Start date as `YYYY-MM-DD`; `null` resets it to the default rule (creation day, or the due date if
+			 * earlier). Changing only the due date to before the Start date pulls the Start date back to it.
+			 */
+			start?: string | null;
 			priority?: Priority;
 			timeBlock?: TimeBlockInput;
 			repeat?: Repeat | null;
@@ -137,6 +147,7 @@ interface TaskRow {
 	created_at: string;
 	due_date: string | null;
 	due_time: string | null;
+	start_date: string;
 	priority: Priority;
 	project_id: number | null;
 	block_start: string | null;
@@ -167,6 +178,7 @@ function toTask(db: DatabaseSync, r: TaskRow): Task {
 		createdAt: r.created_at,
 		dueDate: r.due_date,
 		dueTime: r.due_time,
+		startDate: r.start_date,
 		priority: r.priority,
 		timeBlock: r.block_start === null ? null : { start: r.block_start, minutes: r.block_minutes! },
 		projectId: r.project_id,
@@ -216,6 +228,23 @@ function parseRepeat(input: Repeat | null | undefined, hasDue: boolean): Repeat 
 		return { type: 'after', every: input.every, unit: input.unit };
 	}
 	throw new Error('Invalid repetition type (use "fixed" or "after")');
+}
+
+/** Validates Start date text (a plain date, like the date part of a due date). */
+function parseStart(text: string): string {
+	try {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(text.trim())) throw new Error();
+		return Temporal.PlainDate.from(text.trim(), { overflow: 'reject' }).toString();
+	} catch {
+		throw new Error(`Invalid start date "${text}" (use YYYY-MM-DD)`);
+	}
+}
+
+/** An explicit Start date may equal the due date but not come after it. */
+function checkStartVsDue(start: string, dueDate: string | null) {
+	if (dueDate !== null && start > dueDate) {
+		throw new Error(`Start date ${start} is after the due date ${dueDate}`);
+	}
 }
 
 const PRIORITY_RANK: Record<Priority, number> = { none: 0, low: 1, medium: 2, high: 3 };
@@ -282,8 +311,8 @@ export function taskModule({
 			)?.next_id;
 			db.prepare(
 				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				t.id,
 				t.title,
@@ -291,6 +320,8 @@ export function taskModule({
 				t.createdAt,
 				t.dueDate,
 				t.dueTime,
+				// Snapshots from before the Start date existed have none: apply the default rule.
+				t.startDate ?? defaultStartDate(t.createdAt, t.dueDate, homeTimeZone),
 				t.priority,
 				t.projectId,
 				t.timeBlock?.start ?? null,
@@ -392,8 +423,8 @@ export function taskModule({
 		}
 		const { lastInsertRowid } = db
 			.prepare(
-				`INSERT INTO task (id, title, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, milestone_id, repeat)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.run(
 				id ?? null,
@@ -401,6 +432,7 @@ export function taskModule({
 				nowIso(),
 				next.dueDate,
 				next.dueTime,
+				defaultStartDate(nowIso(), next.dueDate, homeTimeZone),
 				t.priority,
 				t.projectId,
 				timeBlock?.start ?? null,
@@ -491,18 +523,27 @@ export function taskModule({
 			const priority = checkPriority(input.priority ?? 'none');
 			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
 			const repeat = parseRepeat(input.repeat, due !== null);
+			const created = nowIso();
+			let startDate: string;
+			if (input.start) {
+				startDate = parseStart(input.start);
+				checkStartVsDue(startDate, due?.date ?? null);
+			} else {
+				startDate = defaultStartDate(created, due?.date ?? null, homeTimeZone);
+			}
 			return atomically(() => {
 				const projectId = input.projectId ?? null;
 				if (projectId !== null) assertProjectOpen(db, projectId);
 				const { lastInsertRowid } = db
 					.prepare(
-						'INSERT INTO task (title, created_at, due_date, due_time, priority, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+						'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 					)
 					.run(
 						title,
-						nowIso(),
+						created,
 						due?.date ?? null,
 						due?.time ?? null,
+						startDate,
 						priority,
 						projectId,
 						block?.start ?? null,
@@ -531,6 +572,15 @@ export function taskModule({
 					dueDate = due?.date ?? null;
 					dueTime = due?.time ?? null;
 				}
+				let startDate = before.startDate;
+				if (changes.start === null) {
+					startDate = defaultStartDate(before.createdAt, dueDate, homeTimeZone);
+				} else if (changes.start !== undefined) {
+					startDate = parseStart(changes.start);
+					checkStartVsDue(startDate, dueDate);
+				} else if (dueDate !== null && startDate > dueDate) {
+					startDate = dueDate;
+				}
 				const priority = checkPriority(changes.priority ?? before.priority);
 				const block =
 					changes.timeBlock === undefined
@@ -541,11 +591,12 @@ export function taskModule({
 					dueDate !== null
 				);
 				db.prepare(
-					'UPDATE task SET title = ?, due_date = ?, due_time = ?, priority = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
+					'UPDATE task SET title = ?, due_date = ?, due_time = ?, start_date = ?, priority = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
 				).run(
 					title,
 					dueDate,
 					dueTime,
+					startDate,
 					priority,
 					block?.start ?? null,
 					block?.minutes ?? null,
