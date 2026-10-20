@@ -19,6 +19,15 @@ function dueOf(form: FormData): string | null {
 	return time ? `${date}T${time}` : date;
 }
 
+// The "Начало" date input: empty means the default Start date (on the edit form: reset to it).
+// On the edit form an untouched input (same as `startWas`) is left out, so moving only the due date
+// earlier pulls the Start date back instead of conflicting with the old one.
+function startOf(form: FormData): string | null | undefined {
+	const value = String(form.get('startDate') ?? '');
+	if (form.has('startWas') && value === form.get('startWas')) return undefined;
+	return value || null;
+}
+
 // Time block inputs (date + time + minutes) become `{ start, minutes }`. An empty date or time
 // means "no Time block", which on the edit form clears an existing one.
 function blockOf(form: FormData) {
@@ -73,9 +82,11 @@ export const load: PageServerLoad = ({ url }) => {
 				(tag === undefined || t.tags.includes(tag))
 		);
 	}
+	const today = Temporal.Now.plainDateISO(HOME_TIME_ZONE).toString();
 	return {
 		tasks: tasks.map((t) => ({
 			...t,
+			startsLater: t.startDate > today,
 			block: blockFields(t.timeBlock),
 			repeatForm: repeatFields(t.repeat),
 			repeatText: repeatLabel(t.repeat)
@@ -107,6 +118,7 @@ export const actions: Actions = {
 			getPlanner().createTask(actorOf(locals), {
 				title,
 				due: dueOf(data),
+				start: startOf(data),
 				priority: priorityOf(data)
 			});
 		} catch (e) {
@@ -119,6 +131,7 @@ export const actions: Actions = {
 			getPlanner().updateTask(actorOf(locals), Number(data.get('id')), {
 				title: String(data.get('title') ?? ''),
 				due: dueOf(data),
+				start: startOf(data),
 				priority: priorityOf(data),
 				timeBlock: blockOf(data)
 			});
