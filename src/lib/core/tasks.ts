@@ -133,6 +133,12 @@ export interface TaskApi {
 	 */
 	tasksIn(list: TaskList): Task[];
 	/**
+	 * The "Все" view, narrowed like `listTasks`. Open Tasks whose Start date is today (Home zone) or
+	 * earlier are `active`; later ones are `notStarted`. Both: due date ascending, timed before date-only,
+	 * priority (high first), creation order; Tasks without a due date LAST. `completed`: newest completion first.
+	 */
+	tasksSplit(filter?: TaskFilter): { active: Task[]; notStarted: Task[]; completed: Task[] };
+	/**
 	 * Case-insensitive title search over all Tasks (done ones included), oldest first, optionally narrowed by
 	 * Project, Tag and a due-date range (`dueFrom`/`dueTo`, inclusive "YYYY-MM-DD"; Tasks without a due date
 	 * never match a date bound). Empty text matches every title, but with no text and no filter nothing is returned.
@@ -661,6 +667,24 @@ export function taskModule({
 				.filter((t) => t.dueDate !== null)
 				.filter(matches[list])
 				.sort(byDue);
+		},
+		tasksSplit(filter = {}) {
+			const today = Temporal.Instant.fromEpochMilliseconds(clock.now().getTime())
+				.toZonedDateTimeISO(homeTimeZone)
+				.toPlainDate()
+				.toString();
+			const all = this.listTasks(filter);
+			// Like `byDue`, but a Task without a due date goes last.
+			const byDueUndatedLast = (a: Task, b: Task) =>
+				Number(a.dueDate === null) - Number(b.dueDate === null) || byDue(a, b);
+			const open = all.filter((t) => t.completedAt === null).sort(byDueUndatedLast);
+			return {
+				active: open.filter((t) => t.startDate <= today),
+				notStarted: open.filter((t) => t.startDate > today),
+				completed: all
+					.filter((t) => t.completedAt !== null)
+					.sort((a, b) => b.completedAt!.localeCompare(a.completedAt!) || b.id - a.id)
+			};
 		},
 		searchTasks(text, filter = {}) {
 			const needle = text.trim().toLowerCase();
