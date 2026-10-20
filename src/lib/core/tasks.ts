@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, CoreContext } from './context.js';
-import { defaultStartDate } from './schema.js';
+import { clampToDue, defaultStartDate, resolveStartDate } from './start-date.js';
 import { assertProjectOpen, cleanTag } from './organising.js';
 import { normalizeRule, occurrencesBetween, ruleContinuingFrom, type RuleSpec } from './recurrence.js';
 
@@ -236,23 +236,6 @@ function parseRepeat(input: Repeat | null | undefined, hasDue: boolean): Repeat 
 	throw new Error('Invalid repetition type (use "fixed" or "after")');
 }
 
-/** Validates Start date text (a plain date, like the date part of a due date). */
-function parseStart(text: string): string {
-	try {
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(text.trim())) throw new Error();
-		return Temporal.PlainDate.from(text.trim(), { overflow: 'reject' }).toString();
-	} catch {
-		throw new Error(`Invalid start date "${text}" (use YYYY-MM-DD)`);
-	}
-}
-
-/** An explicit Start date may equal the due date but not come after it. */
-function checkStartVsDue(start: string, dueDate: string | null) {
-	if (dueDate !== null && start > dueDate) {
-		throw new Error(`Start date ${start} is after the due date ${dueDate}`);
-	}
-}
-
 const PRIORITY_RANK: Record<Priority, number> = { none: 0, low: 1, medium: 2, high: 3 };
 
 function checkPriority(p: string): Priority {
@@ -433,11 +416,10 @@ export function taskModule({
 		if (t.dueDate && next.dueDate) {
 			const gap = startOf.until(Temporal.PlainDate.from(t.dueDate), { largestUnit: 'days' }).days;
 			startDate = Temporal.PlainDate.from(next.dueDate).subtract({ days: Math.max(gap, 0) }).toString();
-		} else if (t.repeat?.type === 'after') {
-			startDate = startOf.add({ [`${t.repeat.unit}s`]: t.repeat.every }).toString();
-			if (next.dueDate && startDate > next.dueDate) startDate = next.dueDate;
 		} else {
-			startDate = defaultStartDate(nowIso(), next.dueDate, homeTimeZone);
+			// No due date on one side, so this is an "after" repeat (a fixed one always has both dates).
+			const { every, unit } = next.repeat as Extract<Repeat, { type: 'after' }>;
+			startDate = clampToDue(startOf.add({ [`${unit}s`]: every }).toString(), next.dueDate);
 		}
 		const { lastInsertRowid } = db
 			.prepare(
@@ -542,13 +524,11 @@ export function taskModule({
 			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
 			const repeat = parseRepeat(input.repeat, due !== null);
 			const created = nowIso();
-			let startDate: string;
-			if (input.start) {
-				startDate = parseStart(input.start);
-				checkStartVsDue(startDate, due?.date ?? null);
-			} else {
-				startDate = defaultStartDate(created, due?.date ?? null, homeTimeZone);
-			}
+			const startDate = resolveStartDate(
+				due?.date ?? null,
+				homeTimeZone,
+				input.start == null ? { createdAt: created } : { explicit: input.start }
+			);
 			return atomically(() => {
 				const projectId = input.projectId ?? null;
 				if (projectId !== null) assertProjectOpen(db, projectId);
@@ -590,15 +570,15 @@ export function taskModule({
 					dueDate = due?.date ?? null;
 					dueTime = due?.time ?? null;
 				}
-				let startDate = before.startDate;
-				if (changes.start === null) {
-					startDate = defaultStartDate(before.createdAt, dueDate, homeTimeZone);
-				} else if (changes.start !== undefined) {
-					startDate = parseStart(changes.start);
-					checkStartVsDue(startDate, dueDate);
-				} else if (dueDate !== null && startDate > dueDate) {
-					startDate = dueDate;
-				}
+				const startDate = resolveStartDate(
+					dueDate,
+					homeTimeZone,
+					changes.start === null
+						? { createdAt: before.createdAt }
+						: changes.start === undefined
+							? { keep: before.startDate }
+							: { explicit: changes.start }
+				);
 				const priority = checkPriority(changes.priority ?? before.priority);
 				const block =
 					changes.timeBlock === undefined
@@ -669,10 +649,7 @@ export function taskModule({
 				.sort(byDue);
 		},
 		tasksSplit(filter = {}) {
-			const today = Temporal.Instant.fromEpochMilliseconds(clock.now().getTime())
-				.toZonedDateTimeISO(homeTimeZone)
-				.toPlainDate()
-				.toString();
+			const today = homeDate().toString();
 			const all = this.listTasks(filter);
 			// Like `byDue`, but a Task without a due date goes last.
 			const byDueUndatedLast = (a: Task, b: Task) =>

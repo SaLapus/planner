@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { defaultStartDate } from './start-date.js';
 
 /** A migration is SQL, or a code step (needs the Home time zone, e.g. a backfill). */
 type Migration = string | ((db: DatabaseSync, homeTimeZone: string) => void);
@@ -180,15 +181,6 @@ const MIGRATIONS: Migration[] = [
 		for (const r of rows) set.run(defaultStartDate(r.created_at, r.due_date, homeTimeZone), r.id);
 	}
 ];
-
-/**
- * The default Start date: the creation day in the Home time zone, or the due date if that is earlier.
- * The one place this rule lives.
- */
-export function defaultStartDate(createdAt: string, dueDate: string | null, homeTimeZone: string): string {
-	const created = Temporal.Instant.from(createdAt).toZonedDateTimeISO(homeTimeZone).toPlainDate().toString();
-	return dueDate !== null && dueDate < created ? dueDate : created;
-}
 
 export function migrate(db: DatabaseSync, homeTimeZone: string): void {
 	const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
