@@ -1,15 +1,11 @@
 <script lang="ts">
 	// The Schedule section's second row, shared by every Schedule page.
 	import { page } from '$app/state';
+	import { scheduleItems } from './schedule-nav.js';
 
 	let { today }: { today: string } = $props();
 
-	let items = $derived([
-		{ href: '/events', label: 'Расписание', current: page.url.pathname === '/events' },
-		{ href: `/events/day/${today}`, label: 'День', current: page.url.pathname.startsWith('/events/day/') },
-		{ href: `/events/week/${today}`, label: 'Неделя', current: page.url.pathname.startsWith('/events/week/') },
-		{ href: '/calendar', label: 'Лента', current: page.url.pathname === '/calendar' }
-	]);
+	let items = $derived(scheduleItems(today, page.url.pathname));
 </script>
 
 <nav class="subnav" aria-label="Расписание">
