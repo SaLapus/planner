@@ -47,8 +47,6 @@
 </svelte:head>
 
 <main>
-	<form method="POST" action="/auth/logout" class="logout"><button>Выйти</button></form>
-	<nav><a href="/habits">Привычки</a> · <a href="/goals">Цели</a> · <a href="/stats">Статистика</a> · <a href="/reviews">Обзоры</a> · <a href="/trash">Корзина</a> · <a href="/changes">Журнал изменений</a> · <a href="/events">Расписание</a></nav>
 	<h1>Задачи</h1>
 
 	<!-- A plain GET form: submitting it reloads the page with ?q=..., and `load` does the search. -->
@@ -61,7 +59,7 @@
 	</form>
 
 	<!-- List tabs: each link is just an address; the filters below are kept when switching. -->
-	<nav aria-label="Списки">
+	<nav class="subnav" aria-label="Списки">
 		<a href={href({ list: null })} class:active={!data.list}>Все</a>
 		{#each lists as [key, label] (key)}
 			<a href={href({ list: key })} class:active={data.list === key}>{label}</a>
@@ -69,7 +67,7 @@
 	</nav>
 
 	<!-- Filter chips: by project and by tag. Clicking the active chip again clears it. -->
-	<nav aria-label="Фильтры">
+	<nav class="subnav" aria-label="Фильтры">
 		<a href={href({ project: 'none' })} class:active={data.filter.project === 'none'}>Без проекта</a>
 		{#each data.projects as p (p.id)}
 			<a href={href({ project: String(p.id) })} class:active={data.filter.project === String(p.id)}>{p.name}</a>
@@ -270,9 +268,6 @@
 </main>
 
 <style>
-	.logout {
-		text-align: right;
-	}
 	main {
 		max-width: 32rem;
 		margin: 2rem auto;
@@ -298,15 +293,6 @@
 	.edit input,
 	select {
 		padding: 0.5rem;
-	}
-	nav {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin: 0.5rem 0 1rem;
-	}
-	nav a.active {
-		font-weight: bold;
 	}
 	.title {
 		flex: 1;

@@ -16,7 +16,6 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/">← Задачи</a> · <a href="/trash">Корзина</a></nav>
 	<h1>Журнал изменений</h1>
 
 	<p class="filter">

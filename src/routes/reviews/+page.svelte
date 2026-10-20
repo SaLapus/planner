@@ -15,7 +15,6 @@
 </svelte:head>
 
 <main>
-	<nav><a href="/">← Задачи</a></nav>
 	<h1>Обзоры</h1>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
 

@@ -15,7 +15,6 @@
 </svelte:head>
 
 <main>
-	<p><a href="/">← К задачам</a></p>
 	<h1>Проекты</h1>
 
 	<form method="POST" action="?/create" use:enhance class="row">
