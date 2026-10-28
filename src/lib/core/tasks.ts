@@ -158,7 +158,7 @@ export interface TaskApi {
 	/**
 	 * Case-insensitive search of title and Notes over all Tasks (done ones included), oldest first, optionally narrowed by
 	 * Project, Tag and a due-date range (`dueFrom`/`dueTo`, inclusive "YYYY-MM-DD"; Tasks without a due date
-	 * never match a date bound). Empty text matches every title, but with no text and no filter nothing is returned.
+	 * never match a date bound). Empty text matches every Task (title and Notes alike), but with no text and no filter nothing is returned.
 	 */
 	searchTasks(text: string, filter?: TaskSearchFilter): Task[];
 }
@@ -293,6 +293,62 @@ function parseDue(text: string, homeTimeZone: string): { date: string; time: str
 	}
 }
 
+/** The DueInput text for a Task's stored due parts (the inverse of `parseDue`). */
+function dueInputOf(dueDate: string | null, dueTime: string | null): DueInput {
+	if (dueDate === null) return null;
+	return dueTime ? `${dueDate}T${dueTime}` : dueDate;
+}
+
+/** A full `task` row, as stored. Optional fields default to open (`completedAt`) and unlinked (`nextId`). */
+interface TaskRowValues {
+	id: number | null;
+	title: string;
+	completedAt?: string | null;
+	createdAt: string;
+	dueDate: string | null;
+	dueTime: string | null;
+	startDate: string;
+	priority: Priority;
+	notes: string;
+	projectId: number | null;
+	blockStart: string | null;
+	blockMinutes: number | null;
+	milestoneId: number | null;
+	repeat: Repeat | null;
+	nextId?: number | null;
+}
+
+/**
+ * The one place that lists the `task` columns. `id: null` lets SQLite assign one; `replace` overwrites an
+ * existing row with the same id (snapshot restore). Returns the row id.
+ */
+function insertTaskRow(db: DatabaseSync, r: TaskRowValues, replace = false): number {
+	const { lastInsertRowid } = db
+		.prepare(
+			`INSERT ${replace ? 'OR REPLACE ' : ''}INTO task
+			 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		)
+		.run(
+			r.id,
+			r.title,
+			r.completedAt ?? null,
+			r.createdAt,
+			r.dueDate,
+			r.dueTime,
+			r.startDate,
+			r.priority,
+			r.notes,
+			r.projectId,
+			r.blockStart,
+			r.blockMinutes,
+			r.milestoneId,
+			r.repeat === null ? null : JSON.stringify(r.repeat),
+			r.nextId ?? null
+		);
+	return Number(lastInsertRowid);
+}
+
 export function taskModule({
 	db,
 	nowIso,
@@ -324,28 +380,28 @@ export function taskModule({
 					| { next_id: number | null }
 					| undefined
 			)?.next_id;
-			db.prepare(
-				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			).run(
-				t.id,
-				t.title,
-				t.completedAt,
-				t.createdAt,
-				t.dueDate,
-				t.dueTime,
-				// Snapshots from before the Start date existed have none: apply the default rule.
-				t.startDate ?? defaultStartDate(t.createdAt, t.dueDate, homeTimeZone),
-				t.priority,
-				// Snapshots from before Notes existed have none.
-				t.notes ?? '',
-				t.projectId,
-				t.timeBlock?.start ?? null,
-				t.timeBlock?.minutes ?? null,
-				t.milestoneId,
-				t.repeat === null ? null : JSON.stringify(t.repeat),
-				t.nextId
+			insertTaskRow(
+				db,
+				{
+					id: t.id,
+					title: t.title,
+					completedAt: t.completedAt,
+					createdAt: t.createdAt,
+					dueDate: t.dueDate,
+					dueTime: t.dueTime,
+					// Snapshots from before the Start date existed have none: apply the default rule.
+					startDate: t.startDate ?? defaultStartDate(t.createdAt, t.dueDate, homeTimeZone),
+					priority: t.priority,
+					// Snapshots from before Notes existed have none.
+					notes: t.notes ?? '',
+					projectId: t.projectId,
+					blockStart: t.timeBlock?.start ?? null,
+					blockMinutes: t.timeBlock?.minutes ?? null,
+					milestoneId: t.milestoneId,
+					repeat: t.repeat,
+					nextId: t.nextId
+				},
+				true
 			);
 			db.prepare('DELETE FROM task_tag WHERE task_id = ?').run(t.id);
 			db.prepare('DELETE FROM subtask WHERE task_id = ?').run(t.id);
@@ -449,27 +505,21 @@ export function taskModule({
 			const { every, unit } = next.repeat as Extract<Repeat, { type: 'after' }>;
 			startDate = clampToDue(startOf.add({ [`${unit}s`]: every }).toString(), next.dueDate);
 		}
-		const { lastInsertRowid } = db
-			.prepare(
-				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.run(
-				id ?? null,
-				t.title,
-				nowIso(),
-				next.dueDate,
-				next.dueTime,
-				startDate,
-				t.priority,
-				t.notes,
-				t.projectId,
-				timeBlock?.start ?? null,
-				timeBlock?.minutes ?? null,
-				t.milestoneId,
-				JSON.stringify(next.repeat)
-			);
-		const newId = Number(lastInsertRowid);
+		const newId = insertTaskRow(db, {
+			id: id ?? null,
+			title: t.title,
+			createdAt: nowIso(),
+			dueDate: next.dueDate,
+			dueTime: next.dueTime,
+			startDate,
+			priority: t.priority,
+			notes: t.notes,
+			projectId: t.projectId,
+			blockStart: timeBlock?.start ?? null,
+			blockMinutes: timeBlock?.minutes ?? null,
+			milestoneId: t.milestoneId,
+			repeat: next.repeat
+		});
 		for (const tag of t.tags) {
 			db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(newId, tag);
 		}
@@ -545,7 +595,7 @@ export function taskModule({
 	}
 
 	/** The one Task insert path: `createTask` and `duplicateTask` both come through here. */
-	function create(actor: Actor, input: CreateTaskInput, milestoneId: number | null): Task {
+	function insertTask(actor: Actor, input: CreateTaskInput, milestoneId: number | null): Task {
 		const title = input.title.trim();
 		if (!title) throw new Error('Task title must not be empty');
 		const due = input.due ? parseDue(input.due, homeTimeZone) : null;
@@ -562,49 +612,42 @@ export function taskModule({
 		return atomically(() => {
 			const projectId = input.projectId ?? null;
 			if (projectId !== null) assertProjectOpen(db, projectId);
-			const { lastInsertRowid } = db
-				.prepare(
-					'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-				)
-				.run(
-					title,
-					created,
-					due?.date ?? null,
-					due?.time ?? null,
-					startDate,
-					priority,
-					input.notes ?? '',
-					projectId,
-					block?.start ?? null,
-					block?.minutes ?? null,
-					milestoneId,
-					repeat === null ? null : JSON.stringify(repeat)
-				);
+			const taskId = insertTaskRow(db, {
+				id: null,
+				title,
+				createdAt: created,
+				dueDate: due?.date ?? null,
+				dueTime: due?.time ?? null,
+				startDate,
+				priority,
+				notes: input.notes ?? '',
+				projectId,
+				blockStart: block?.start ?? null,
+				blockMinutes: block?.minutes ?? null,
+				milestoneId,
+				repeat
+			});
 			for (const tag of new Set((input.tags ?? []).map(cleanTag))) {
-				db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(
-					Number(lastInsertRowid),
-					tag
-				);
+				db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(taskId, tag);
 			}
 			subtasks.forEach((title, position) =>
 				db
 					.prepare('INSERT INTO subtask (task_id, title, position) VALUES (?, ?, ?)')
-					.run(Number(lastInsertRowid), title, position)
+					.run(taskId, title, position)
 			);
-			const task = getTask(Number(lastInsertRowid));
+			const task = getTask(taskId);
 			record(actor, 'task.create', 'task', task.id, null, task);
 			return task;
 		});
 	}
 
 	return {
-		createTask: (actor, input) => create(actor, input, null),
+		createTask: (actor, input) => insertTask(actor, input, null),
 		duplicateTask(actor, id, changes = {}) {
 			if (!taskExists(id) && inTrash(id)) throw new Error(`Task ${id} is in Trash; restore it first`);
 			const source = getTask(id);
-			const due =
-				source.dueDate === null ? null : source.dueTime ? `${source.dueDate}T${source.dueTime}` : source.dueDate;
-			return create(
+			const due = dueInputOf(source.dueDate, source.dueTime);
+			return insertTask(
 				actor,
 				{
 					title: source.title,

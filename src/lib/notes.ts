@@ -9,13 +9,14 @@ export type NotesPiece =
 // A URL runs until whitespace or a character that can't be part of one in prose or markup.
 const URL = /https?:\/\/[^\s<>"]+/gi;
 const TRAILING = /[.,;:!?'*\]}>)]$/;
+const OPENER: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
 
 // Cuts trailing punctuation off a matched URL. A closing bracket stays when it has its opener
 // inside the URL, as in .../a_(b).
 function trimUrl(url: string): string {
 	while (TRAILING.test(url)) {
 		const last = url.at(-1)!;
-		const opener = { ')': '(', ']': '[', '}': '{' }[last];
+		const opener = OPENER[last];
 		if (opener && count(url, last) <= count(url, opener)) break;
 		url = url.slice(0, -1);
 	}
