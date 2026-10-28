@@ -1,4 +1,4 @@
-# Weekly and monthly review routines (ticket #21)
+# Weekly and monthly review routines
 
 Claude Code routines on the owner's Pro plan write a draft Review through the Planner connector. The prompts are kept here for reference and to paste into the routines:
 
@@ -24,7 +24,7 @@ If the schedule form shows times in your local zone instead of UTC, enter the Is
 
 ## Create the routines (owner, once)
 
-Prerequisites: the production Planner is deployed (`docs/server-setup.md`, tickets #17 and #19) and the connector `Planner` is added in claude.ai (section 5.1 there).
+Prerequisites: the Planner is deployed (see "Run it yourself" in the README) and the connector `Planner` is added in claude.ai ("Connect Claude" in the README).
 
 Field and button names may differ; follow the current routines UI.
 
@@ -43,7 +43,6 @@ Field and button names may differ; follow the current routines UI.
 3. Open the Planner, Reviews: the current week has a draft in Russian with sections Сделано, Не сделано, Привычки, Цели, and an empty reflection.
 4. Write something into the reflection and save. Run the routine again. Expected: the same Review is updated (same id, new draft text), your reflection is unchanged.
 5. Repeat steps 1 to 3 for the monthly routine. It reviews the previous month, so its draft appears under last month. Its date logic is written for the 1st but works on any day.
-6. Tick the boxes in ticket #21.
 
 ## If something goes wrong
 

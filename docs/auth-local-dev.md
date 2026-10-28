@@ -18,7 +18,7 @@ It listens on http://localhost:1411 (passkeys work on `localhost` without HTTPS)
 
 ## 3. Configure the Planner
 
-Create `planner/.env` (git-ignored; real environment variables win over it):
+Create `.env` in the repo root (git-ignored; real environment variables win over it):
 
 ```
 PLANNER_URL=http://localhost:5173
@@ -44,4 +44,4 @@ Open http://localhost:5173. You are redirected to Pocket ID, log in with your pa
 - Only the account whose ID equals `OWNER_SUBJECT` gets in; any other Pocket ID account lands on `/auth/denied`.
 - The session is a signed, http-only cookie (`Secure` automatically when `PLANNER_URL` is https), valid 90 days. Logout (button on the main page) clears it. Because it is stateless, there is no server-side revoke: to invalidate every session, change `SESSION_SECRET`; to change who may enter, change `OWNER_SUBJECT`.
 - Every page and `/api/*` route requires the session (`/api/*` answers 401 instead of redirecting). UI requests run in the core as Actor `owner`.
-- Tests build the auth with `createAuth({ config, fetch, clock })` (see `planner/src/lib/server/auth/auth.test.ts` and `testing/fake-idp.ts`); later MCP contract tests can do the same with a test config.
+- Tests build the auth with `createAuth({ config, fetch, clock })` (see `src/lib/server/auth/auth.test.ts` and `testing/fake-idp.ts`); later MCP contract tests can do the same with a test config.

@@ -1,7 +1,7 @@
 // End-to-end check of the Claude connector against a RUNNING Planner (pnpm dev), without a browser:
 // dynamic client registration -> authorize (owner session) -> PKCE token -> refresh -> MCP tool calls.
 //
-//   node --env-file=.env scripts/connector-e2e.mjs        (run inside planner/)
+//   node --env-file=.env scripts/connector-e2e.mjs        (run from the repo root)
 //
 // It needs PLANNER_URL and SESSION_SECRET (the same values the server uses): the owner session
 // cookie is signed locally, standing in for the Pocket ID login that a human would do.

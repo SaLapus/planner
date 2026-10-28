@@ -1,5 +1,5 @@
-# Planner image. Build context is the REPO ROOT (the pnpm lockfile lives there):
-#   docker build -f planner/Dockerfile .
+# Planner image. Build from the repo root:
+#   docker build -t planner .
 # Needs Node 24+ because the database is the built-in `node:sqlite`.
 
 FROM node:26-slim AS build
@@ -13,22 +13,21 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=11.24.0 ENV="$HOME/.shrc" SHELL="$(which sh)" sh - \
  && pnpm --version
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY planner/package.json planner/package.json
+COPY package.json pnpm-lock.yaml ./
 # adapter-node bundles devDependencies into the build but leaves `dependencies` as imports from
 # node_modules, which the final image does not have. So every package the app uses must be a
 # devDependency; a package in `dependencies` would crash the app at start (ERR_MODULE_NOT_FOUND).
-RUN node -e "const d = Object.keys(require('./planner/package.json').dependencies || {}); if (d.length) { console.error('planner/package.json: move to devDependencies (the image has no node_modules): ' + d.join(', ')); process.exit(1); }"
+RUN node -e "const d = Object.keys(require('./package.json').dependencies || {}); if (d.length) { console.error('package.json: move to devDependencies (the image has no node_modules): ' + d.join(', ')); process.exit(1); }"
 RUN pnpm install --frozen-lockfile
-COPY planner planner
-RUN pnpm --filter planner build
+COPY . .
+RUN pnpm build
 
 FROM node:26-slim
 WORKDIR /app
 # The adapter-node build is self-contained (all packages are devDependencies, see above): no node_modules.
-COPY --from=build /app/planner/build ./build
-COPY --from=build /app/planner/package.json ./package.json
-COPY planner/scripts/backup.mjs ./backup.mjs
+COPY --from=build /app/build ./build
+COPY --from=build /app/package.json ./package.json
+COPY scripts/backup.mjs ./backup.mjs
 
 # Behind Caddy: believe its forwarded headers so the app sees https://plan.<domain>
 # (needed for the same-origin/CSRF check and Secure cookies). Safe because only Caddy can reach this port.

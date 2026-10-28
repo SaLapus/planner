@@ -4,7 +4,7 @@ The Planner serves an MCP endpoint at `/mcp` and is its own OAuth server (dynami
 
 ## Steps
 
-1. Set up login and run the app as described in `docs/auth-local-dev.md` (`pnpm dev`, `planner/.env` with `PLANNER_URL=http://localhost:5173`).
+1. Set up login and run the app as described in `docs/auth-local-dev.md` (`pnpm dev`, `.env` with `PLANNER_URL=http://localhost:5173`).
 2. Add the server:
 
    ```
@@ -20,5 +20,5 @@ Tools: `create_task`, `list_tasks`, `complete_task`, `uncomplete_task`.
 
 - Access tokens last 1 hour; Claude Code refreshes them itself. Refresh tokens last 180 days and rotate on every use. Reusing an old refresh token revokes that whole login.
 - Clients and tokens live in the Planner database (tables `oauth_client`, `oauth_token`, `oauth_code`), so backups include them. To revoke everything: delete the rows of `oauth_token`.
-- On a server the same works with `https://plan.<domain>/mcp`. For claude.ai (web, then Android) add a custom connector with that URL; its callback `https://claude.ai/api/mcp/auth_callback` is accepted at registration.
-- Without a browser you can exercise the same flow against a running dev server: `node --env-file=.env scripts/connector-e2e.mjs` in `planner/` (signs an owner cookie from `SESSION_SECRET`).
+- On a server the same works with `https://<your planner address>/mcp`; see "Connect Claude" in the README for claude.ai (web and Android). Its callback `https://claude.ai/api/mcp/auth_callback` is accepted at registration.
+- Without a browser you can exercise the same flow against a running dev server: `node --env-file=.env scripts/connector-e2e.mjs` (signs an owner cookie from `SESSION_SECRET`).
