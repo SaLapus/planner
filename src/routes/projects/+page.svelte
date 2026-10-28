@@ -19,7 +19,7 @@
 
 	<form method="POST" action="?/create" use:enhance class="row">
 		<input name="name" placeholder="Новый проект…" autocomplete="off" aria-label="Название проекта" />
-		<button>Добавить</button>
+		<button class="primary">Добавить</button>
 	</form>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
 
@@ -59,9 +59,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 2rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	ul {
 		list-style: none;
@@ -79,9 +78,9 @@
 		padding: 0.4rem;
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 </style>

@@ -74,7 +74,7 @@
 				<input name="title" value={p.goal.title} required />
 				<textarea name="description">{p.goal.description}</textarea>
 				<label>Срок <input type="date" name="targetDate" value={p.goal.targetDate ?? ''} /></label>
-				<button>Сохранить</button>
+				<button class="primary">Сохранить</button>
 			</form>
 		{/if}
 	</header>
@@ -134,7 +134,7 @@
 	<form method="POST" action="?/addMilestone" class="inline" use:enhance>
 		<input name="title" placeholder="Новый этап" required />
 		<input type="date" name="targetDate" />
-		<button>Добавить</button>
+		<button class="primary">Добавить</button>
 	</form>
 
 	<h2>Задачи ({p.tasks.done}/{p.tasks.total})</h2>
@@ -193,9 +193,8 @@
 <style>
 	main {
 		max-width: 36rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	progress {
 		width: 100%;
@@ -210,11 +209,11 @@
 		gap: 0.5rem;
 		align-items: center;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	li.done .grow {
 		text-decoration: line-through;
-		color: #888;
+		color: var(--ink-muted);
 	}
 	.grow {
 		flex: 1;
@@ -236,31 +235,34 @@
 		width: 2.25rem;
 		height: 2.25rem;
 		border-radius: 50%;
-		border: 2px solid #888;
-		background: none;
+		min-height: 0;
+		padding: 0;
+		border: 2px solid var(--field);
+		background: var(--surface);
+		color: transparent;
 		cursor: pointer;
 	}
 	li.done .check {
-		background: #2e7d32;
-		border-color: #2e7d32;
-		color: white;
+		background: var(--level-4);
+		border-color: var(--level-4);
+		color: var(--on-level-4);
 	}
 	.link {
 		background: none;
 		border: none;
-		color: #1a56db;
-		cursor: pointer;
+		color: var(--accent);
+		min-height: 2rem;
 		padding: 0.25rem;
 		font: inherit;
 	}
-	.link:disabled {
-		color: #bbb;
-		cursor: default;
+	.link:hover:not(:disabled) {
+		background: none;
+		text-decoration: underline;
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 </style>

@@ -49,7 +49,7 @@
 		<!-- When `occurrence` flips, the fields that cannot change for a single occurrence (zone, repeat) disappear or come back. -->
 		<EventFields {values} zones={data.zones} occurrence={Boolean(data.occ) && scope === 'this'} />
 		{#if form?.error}<p class="error">{form.error}</p>{/if}
-		<button>Сохранить</button>
+		<button class="primary">Сохранить</button>
 	</form>
 
 	{#if data.occ}
@@ -67,9 +67,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	button {
 		font: inherit;
@@ -80,13 +79,13 @@
 		margin-top: 1.5rem;
 	}
 	.delete button {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.rule {
-		color: #555;
+		color: var(--ink-soft);
 	}
 	.choice {
 		display: flex;

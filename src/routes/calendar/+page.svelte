@@ -44,6 +44,6 @@
 			copied = false;
 		}}
 	>
-		<button>Создать новую ссылку</button>
+		<button class="primary">Создать новую ссылку</button>
 	</form>
 </main>

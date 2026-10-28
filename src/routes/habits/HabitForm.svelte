@@ -41,7 +41,7 @@
 		<input type="number" name="count" min="1" max={type === 'per_week' ? 7 : 31} value={count} />
 	</label>
 {/if}
-<button>{submit}</button>
+<button class="primary">{submit}</button>
 
 <style>
 	.days {
