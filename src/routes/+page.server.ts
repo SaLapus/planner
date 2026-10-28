@@ -142,6 +142,7 @@ export const actions: Actions = {
 				due: dueOf(data),
 				start: startDateOf(data),
 				priority: priorityOf(data),
+				notes: String(data.get('notes') ?? ''),
 				timeBlock: blockOf(data)
 			});
 		} catch (e) {

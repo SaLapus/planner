@@ -41,17 +41,24 @@ const repeatSchema = z
 		'Repetition. "fixed" follows an RRULE counted from the due date (requires a due date); "after" schedules the next one N units after the day it is completed. Completing a repeating Task keeps it as done and creates the next instance (its id is nextId on the completed Task).'
 	);
 
+const notesSchema = z
+	.string()
+	.describe(
+		'Notes: free text for information to read (book and chapter, links, a bookmark), kept as written with line breaks. Not for steps: tickable steps are Subtasks (add_subtask)'
+	);
+
 export const registerTaskTools: RegisterTools = (server, { planner, actor }) => {
 	server.registerTool(
 		'create_task',
 		{
 			description:
-				'Create a Task (a to-do item) with a title and optional due date/time, priority, project and tags. Text is stored exactly as given, in any language. A Task is Active once its Start date (startDate) has arrived; pass start to create one that starts later. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
+				'Create a Task (a to-do item) with a title and optional due date/time, priority, notes, project and tags. Notes hold information to read (book, chapter, links, a bookmark); Subtasks hold tickable steps. Text is stored exactly as given, in any language. A Task is Active once its Start date (startDate) has arrived; pass start to create one that starts later. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
 			inputSchema: z.object({
 				title: z.string().describe('What needs to be done'),
 				due: dueSchema.optional(),
 				start: startSchema.optional(),
 				priority: prioritySchema.optional(),
+				notes: notesSchema.nullable().optional(),
 				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
 				tags: z.array(z.string()).optional().describe('Free-form tags'),
@@ -64,12 +71,13 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 					)
 			})
 		},
-		reply(({ title, due, start, priority, time_block, project_id, tags, repeat, subtasks }) =>
+		reply(({ title, due, start, priority, notes, time_block, project_id, tags, repeat, subtasks }) =>
 			planner.createTask(actor, {
 				title,
 				due,
 				start,
 				priority,
+				notes: notes ?? undefined,
 				timeBlock: time_block,
 				projectId: project_id,
 				tags,
@@ -83,19 +91,24 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'update_task',
 		{
 			description:
-				'Change a Task\'s title, due date/time, Start date, priority, Time block or repetition. Only the fields you pass change; pass start: null to reset the Start date to the default rule (postponing a Task = moving start later), due: null to remove the due date, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
+				'Change a Task\'s title, due date/time, Start date, priority, Notes, Time block or repetition. Notes hold information to read (book, chapter, links, a bookmark); Subtasks hold tickable steps. Only the fields you pass change; pass start: null to reset the Start date to the default rule (postponing a Task = moving start later), due: null to remove the due date, notes: null (or "") to clear the Notes, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
 			inputSchema: z.object({
 				id: z.number().int().describe('Task id from list_tasks'),
 				title: z.string().optional(),
 				due: dueSchema.nullable().optional(),
 				start: startSchema.nullable().optional(),
 				priority: prioritySchema.optional(),
+				notes: notesSchema.nullable().optional(),
 				time_block: timeBlockSchema.nullable().optional(),
 				repeat: repeatSchema.nullable().optional()
 			})
 		},
-		reply(({ id, time_block, ...changes }) =>
-			planner.updateTask(actor, id, { ...changes, timeBlock: time_block })
+		reply(({ id, time_block, notes, ...changes }) =>
+			planner.updateTask(actor, id, {
+				...changes,
+				notes: notes === null ? '' : notes,
+				timeBlock: time_block
+			})
 		)
 	);
 

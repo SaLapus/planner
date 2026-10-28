@@ -141,11 +141,18 @@
 					{#if task.subtasks.length > 0}
 						<small>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</small>
 					{/if}
+					{#if task.notes !== ''}
+						<small class="notes-mark" title="Есть заметки">📝</small>
+					{/if}
 				</div>
 
 				<!-- <details> is built-in HTML: click the summary to show or hide the content inside. -->
 				<details>
 					<summary aria-label="Подробнее">✎ Подробнее</summary>
+
+					{#if task.notes !== ''}
+						<p class="notes">{task.notes}</p>
+					{/if}
 
 					<form method="POST" action="?/edit" use:enhance class="edit">
 						<input type="hidden" name="id" value={task.id} />
@@ -179,6 +186,7 @@
 								aria-label="Блок: минут"
 							/> мин
 						</fieldset>
+						<textarea name="notes" rows="3" aria-label="Заметки" placeholder="Заметки">{task.notes}</textarea>
 						<button>Сохранить</button>
 					</form>
 
@@ -341,6 +349,17 @@
 	.edit input,
 	select {
 		padding: 0.5rem;
+	}
+	.notes {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		margin: 0.5rem 0;
+	}
+	.edit textarea {
+		font: inherit;
+		padding: 0.5rem;
+		flex: 1 1 100%;
+		box-sizing: border-box;
 	}
 	.title {
 		flex: 1;
