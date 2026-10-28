@@ -7,7 +7,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite';
 import type { Actor, CoreContext } from './context.js';
-import { readTask, type Task } from './tasks.js';
+import { cleanSubtaskTitle, readTask, type Task } from './tasks.js';
 
 export interface Project {
 	id: number;
@@ -142,12 +142,6 @@ export function organisingModule({
 		return n;
 	}
 
-	function cleanTitle(title: string): string {
-		const t = title.trim();
-		if (!t) throw new Error('Subtask title must not be empty');
-		return t;
-	}
-
 	function subtaskIds(taskId: number): number[] {
 		return (
 			db
@@ -229,7 +223,7 @@ export function organisingModule({
 		},
 
 		addSubtask(actor, taskId, title) {
-			const t = cleanTitle(title);
+			const t = cleanSubtaskTitle(title);
 			return changeTask(actor, taskId, 'task.add_subtask', () => {
 				db.prepare('INSERT INTO subtask (task_id, title, position) VALUES (?, ?, ?)').run(
 					taskId,
