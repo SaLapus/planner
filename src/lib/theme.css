@@ -2,53 +2,64 @@
  * The Planner's look, in one place: palette, light and dark tokens, base element styles.
  * Imported once by +layout.svelte. Pages style themselves with the tokens below, never raw hex.
  *
- * The palette runs from shallow water (light cyan) to deep water (deep twilight).
+ * Light theme: pale water. Dark theme: cool graphite, where blue appears only in accents and
+ * the depth scale, never in the surfaces.
  * One rule ties it together: deeper means more. Progress fills like water rising,
  * and higher priority sits deeper. The --level-1..5 tokens are that scale, from least
  * to most; in dark mode the scale flips toward light, because "more" must still stand out.
  */
 
 :root {
-	/* The palette */
-	--deep-twilight: #03045e;
-	--french-blue: #023e8a;
-	--bright-teal-blue: #0077b6;
-	--blue-green: #0096c7;
-	--turquoise-surf: #00b4d8;
-	--sky-aqua: #48cae4;
-	--frosted-blue: #90e0ef;
-	--frosted-blue-2: #ade8f4;
+	/* Water: the blues, shallow to deep */
+	--shallows: #d6f3f9;
 	--light-cyan: #caf0f8;
+	--frosted-blue: #a6e3f0;
+	--sky-aqua: #48cae4;
+	--surf: #63cde6;
+	--turquoise-surf: #00b4d8;
+	--lagoon: #1a9dd0;
+	--blue-green: #0096c7;
+	--bright-teal-blue: #0077b6;
+	--deep-water: #0b5f99;
+	--harbour-navy: #16324f;
+
+	/* Graphite: the dark theme's surfaces, grey with a faint cool tint */
+	--graphite-0: #15181d;
+	--graphite-1: #1d2128;
+	--graphite-2: #252b33;
+	--graphite-3: #2d343e;
+	--graphite-ink: #e6edf2;
 
 	/* Light theme */
-	--paper: #effbfd; /* page background: light cyan thinned with white */
+	--paper: #f4fbfd; /* page background: the faintest water */
 	--surface: #ffffff; /* fields, cards */
-	--wash: var(--light-cyan); /* soft fills: today, task rows in the schedule, empty tracks */
-	--line: var(--frosted-blue-2); /* separators */
-	--field: var(--blue-green); /* borders of things you can type into or press */
-	--ink: var(--deep-twilight);
-	--ink-soft: var(--french-blue);
-	--ink-muted: #4473aa; /* french blue thinned toward paper; 4.6:1 on paper */
+	--wash: #e3f6fa; /* soft fills: today, task rows in the schedule, empty tracks */
+	--line: #cdeef6; /* separators */
+	--field: #58b4d1; /* borders of things you can type into or press */
+	--ink: var(--harbour-navy);
+	--ink-soft: #2f5a80;
+	--ink-muted: #557590; /* 4.6:1 on paper */
 	--accent: var(--bright-teal-blue);
-	--accent-hover: var(--french-blue);
+	--accent-hover: #0369a1;
 	--on-accent: #ffffff;
 	--focus: var(--turquoise-surf);
-	--danger: #b00020;
-	--ok: var(--french-blue);
-	--bar: var(--deep-twilight); /* the top navigation band */
-	--on-bar: var(--light-cyan);
-	--bar-mark: var(--sky-aqua);
+	--danger: #c62839;
+	--ok: var(--bright-teal-blue);
+	--bar: #dff6fb; /* the top navigation band: pale, set off by a line */
+	--on-bar: var(--harbour-navy);
+	--bar-mark: var(--blue-green);
+	--bar-line: var(--line);
 
-	--level-1: var(--light-cyan);
+	--level-1: var(--shallows);
 	--level-2: var(--frosted-blue);
-	--level-3: var(--sky-aqua);
-	--level-4: var(--bright-teal-blue);
-	--level-5: var(--deep-twilight);
-	--on-level-1: var(--deep-twilight);
-	--on-level-2: var(--deep-twilight);
-	--on-level-3: var(--deep-twilight);
-	--on-level-4: #ffffff;
-	--on-level-5: var(--light-cyan);
+	--level-3: var(--surf);
+	--level-4: var(--lagoon);
+	--level-5: var(--deep-water);
+	--on-level-1: var(--harbour-navy);
+	--on-level-2: var(--harbour-navy);
+	--on-level-3: var(--harbour-navy);
+	--on-level-4: #08243f; /* lagoon is too light for white text */
+	--on-level-5: #ffffff;
 
 	--font: 'Golos Text Variable', system-ui, sans-serif;
 	--radius-s: 0.375rem; /* chips inside rows, day cells */
@@ -60,34 +71,35 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--paper: #02023a; /* deep twilight darkened toward black */
-		--surface: var(--deep-twilight);
-		--wash: #022062;
-		--line: #0b2b72;
-		--field: var(--blue-green);
-		--ink: var(--light-cyan);
-		--ink-soft: var(--frosted-blue);
-		--ink-muted: #6da9c2;
-		--accent: var(--sky-aqua);
-		--accent-hover: var(--frosted-blue);
-		--on-accent: var(--deep-twilight);
-		--focus: var(--turquoise-surf);
+		--paper: var(--graphite-0);
+		--surface: var(--graphite-1);
+		--wash: var(--graphite-2);
+		--line: var(--graphite-3);
+		--field: #4b7a90;
+		--ink: var(--graphite-ink);
+		--ink-soft: #b8c7d1;
+		--ink-muted: #8a9aa6;
+		--accent: #5ccbe6;
+		--accent-hover: #9ce2f1;
+		--on-accent: #0b1820;
+		--focus: var(--sky-aqua);
 		--danger: #ff8a95;
-		--ok: var(--sky-aqua);
-		--bar: var(--deep-twilight);
-		--on-bar: var(--light-cyan);
+		--ok: #5ccbe6;
+		--bar: var(--graphite-1); /* raised a step above the page */
+		--on-bar: var(--graphite-ink);
 		--bar-mark: var(--sky-aqua);
+		--bar-line: var(--graphite-3);
 
-		--level-1: var(--french-blue);
-		--level-2: var(--bright-teal-blue);
-		--level-3: var(--blue-green);
+		--level-1: #1d4a60;
+		--level-2: #1f6a8a;
+		--level-3: #2b8fb3;
 		--level-4: var(--sky-aqua);
 		--level-5: var(--light-cyan);
-		--on-level-1: var(--light-cyan);
+		--on-level-1: #dbeef5;
 		--on-level-2: #ffffff;
-		--on-level-3: var(--deep-twilight);
-		--on-level-4: var(--deep-twilight);
-		--on-level-5: var(--deep-twilight);
+		--on-level-3: #0b1820;
+		--on-level-4: #0b1820;
+		--on-level-5: #0b1820;
 
 		color-scheme: dark;
 	}
