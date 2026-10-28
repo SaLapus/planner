@@ -55,10 +55,16 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
 				tags: z.array(z.string()).optional().describe('Free-form tags'),
-				repeat: repeatSchema.optional()
+				repeat: repeatSchema.optional(),
+				subtasks: z
+					.array(z.string())
+					.optional()
+					.describe(
+						'Subtask titles, created unticked in this order (tickable steps). Blank titles are rejected and nothing is created. Subtasks cannot be replaced through update_task; use add_subtask / remove_subtask'
+					)
 			})
 		},
-		reply(({ title, due, start, priority, time_block, project_id, tags, repeat }) =>
+		reply(({ title, due, start, priority, time_block, project_id, tags, repeat, subtasks }) =>
 			planner.createTask(actor, {
 				title,
 				due,
@@ -67,7 +73,8 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				timeBlock: time_block,
 				projectId: project_id,
 				tags,
-				repeat
+				repeat,
+				subtasks
 			})
 		)
 	);
