@@ -1,5 +1,6 @@
 node_modules/
 .claude/worktrees/
+.claude/settings.local.json
 .svelte-kit/
 build/
 dist/
