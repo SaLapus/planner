@@ -86,23 +86,33 @@ export interface TaskSearchFilter extends TaskFilter {
 	dueTo?: string;
 }
 
+export interface CreateTaskInput {
+	title: string;
+	due?: DueInput;
+	/** Start date as `YYYY-MM-DD`; omitted or null means the default rule. Must not be after the due date. */
+	start?: string | null;
+	priority?: Priority;
+	notes?: string;
+	timeBlock?: TimeBlockInput;
+	projectId?: number | null;
+	tags?: string[];
+	repeat?: Repeat | null;
+	/** Subtask titles, created unticked in this order as part of the same creation. */
+	subtasks?: string[];
+}
+
 export interface TaskApi {
-	createTask(
+	createTask(actor: Actor, input: CreateTaskInput): Task;
+	/**
+	 * A Duplicate: a new, open, non-repeating Task unlinked to `id` (open or completed, not in Trash), with the
+	 * title, Notes, priority, project, tags, Milestone and Subtasks (unticked) of its source. `due` and `timeBlock`:
+	 * omitted keeps the source's, `null` clears. `start`: omitted follows the default Start date rule. It goes
+	 * through the same path as `createTask`.
+	 */
+	duplicateTask(
 		actor: Actor,
-		input: {
-			title: string;
-			due?: DueInput;
-			/** Start date as `YYYY-MM-DD`; omitted or null means the default rule. Must not be after the due date. */
-			start?: string | null;
-			priority?: Priority;
-			notes?: string;
-			timeBlock?: TimeBlockInput;
-			projectId?: number | null;
-			tags?: string[];
-			repeat?: Repeat | null;
-			/** Subtask titles, created unticked in this order as part of the same creation. */
-			subtasks?: string[];
-		}
+		id: number,
+		changes?: { due?: DueInput; start?: string | null; timeBlock?: TimeBlockInput }
 	): Task;
 	updateTask(
 		actor: Actor,
@@ -533,56 +543,81 @@ export function taskModule({
 		});
 	}
 
-	return {
-		createTask(actor, input) {
-			const title = input.title.trim();
-			if (!title) throw new Error('Task title must not be empty');
-			const due = input.due ? parseDue(input.due, homeTimeZone) : null;
-			const priority = checkPriority(input.priority ?? 'none');
-			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
-			const repeat = parseRepeat(input.repeat, due !== null);
-			const subtasks = (input.subtasks ?? []).map(cleanSubtaskTitle);
-			const created = nowIso();
-			const startDate = resolveStartDate(
-				due?.date ?? null,
-				homeTimeZone,
-				input.start == null ? { createdAt: created } : { explicit: input.start }
-			);
-			return atomically(() => {
-				const projectId = input.projectId ?? null;
-				if (projectId !== null) assertProjectOpen(db, projectId);
-				const { lastInsertRowid } = db
-					.prepare(
-						'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-					)
-					.run(
-						title,
-						created,
-						due?.date ?? null,
-						due?.time ?? null,
-						startDate,
-						priority,
-						input.notes ?? '',
-						projectId,
-						block?.start ?? null,
-						block?.minutes ?? null,
-						repeat === null ? null : JSON.stringify(repeat)
-					);
-				for (const tag of new Set((input.tags ?? []).map(cleanTag))) {
-					db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(
-						Number(lastInsertRowid),
-						tag
-					);
-				}
-				subtasks.forEach((title, position) =>
-					db
-						.prepare('INSERT INTO subtask (task_id, title, position) VALUES (?, ?, ?)')
-						.run(Number(lastInsertRowid), title, position)
+	/** The one Task insert path: `createTask` and `duplicateTask` both come through here. */
+	function create(actor: Actor, input: CreateTaskInput, milestoneId: number | null): Task {
+		const title = input.title.trim();
+		if (!title) throw new Error('Task title must not be empty');
+		const due = input.due ? parseDue(input.due, homeTimeZone) : null;
+		const priority = checkPriority(input.priority ?? 'none');
+		const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
+		const repeat = parseRepeat(input.repeat, due !== null);
+		const subtasks = (input.subtasks ?? []).map(cleanSubtaskTitle);
+		const created = nowIso();
+		const startDate = resolveStartDate(
+			due?.date ?? null,
+			homeTimeZone,
+			input.start == null ? { createdAt: created } : { explicit: input.start }
+		);
+		return atomically(() => {
+			const projectId = input.projectId ?? null;
+			if (projectId !== null) assertProjectOpen(db, projectId);
+			const { lastInsertRowid } = db
+				.prepare(
+					'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+				)
+				.run(
+					title,
+					created,
+					due?.date ?? null,
+					due?.time ?? null,
+					startDate,
+					priority,
+					input.notes ?? '',
+					projectId,
+					block?.start ?? null,
+					block?.minutes ?? null,
+					milestoneId,
+					repeat === null ? null : JSON.stringify(repeat)
 				);
-				const task = getTask(Number(lastInsertRowid));
-				record(actor, 'task.create', 'task', task.id, null, task);
-				return task;
-			});
+			for (const tag of new Set((input.tags ?? []).map(cleanTag))) {
+				db.prepare('INSERT INTO task_tag (task_id, tag) VALUES (?, ?)').run(
+					Number(lastInsertRowid),
+					tag
+				);
+			}
+			subtasks.forEach((title, position) =>
+				db
+					.prepare('INSERT INTO subtask (task_id, title, position) VALUES (?, ?, ?)')
+					.run(Number(lastInsertRowid), title, position)
+			);
+			const task = getTask(Number(lastInsertRowid));
+			record(actor, 'task.create', 'task', task.id, null, task);
+			return task;
+		});
+	}
+
+	return {
+		createTask: (actor, input) => create(actor, input, null),
+		duplicateTask(actor, id, changes = {}) {
+			if (!taskExists(id) && inTrash(id)) throw new Error(`Task ${id} is in Trash; restore it first`);
+			const source = getTask(id);
+			const due =
+				source.dueDate === null ? null : source.dueTime ? `${source.dueDate}T${source.dueTime}` : source.dueDate;
+			return create(
+				actor,
+				{
+					title: source.title,
+					notes: source.notes,
+					priority: source.priority,
+					projectId: source.projectId,
+					tags: source.tags,
+					subtasks: source.subtasks.map((s) => s.title),
+					due: changes.due === undefined ? due : changes.due,
+					timeBlock: changes.timeBlock === undefined ? source.timeBlock : changes.timeBlock,
+					start: changes.start
+				},
+				source.milestoneId
+			);
 		},
 		updateTask(actor, id, changes) {
 			return atomically(() => {
