@@ -32,9 +32,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	h2 {
 		font-size: 1rem;
@@ -46,11 +45,11 @@
 		text-decoration: none;
 	}
 	small {
-		color: #0a58ca;
+		color: var(--accent);
 		text-transform: none;
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 		margin: 0.3rem 0;
 	}
 </style>

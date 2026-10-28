@@ -32,7 +32,7 @@
 			Мои размышления (Markdown)
 			<textarea name="reflection" rows="8" value={r.reflection}></textarea>
 		</label>
-		<button>Сохранить</button>
+		<button class="primary">Сохранить</button>
 	</form>
 
 	<details open>
@@ -84,9 +84,8 @@
 <style>
 	main {
 		max-width: 40rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	form {
 		display: flex;
@@ -107,19 +106,19 @@
 		margin: 1rem 0;
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.ok {
-		color: #1b7f3b;
+		color: var(--ok);
 	}
 	.empty,
 	small {
-		color: #888;
+		color: var(--ink-muted);
 	}
 	.link {
 		background: none;
 		border: none;
-		color: #b00020;
+		color: var(--danger);
 		cursor: pointer;
 		align-self: flex-start;
 		padding: 0;

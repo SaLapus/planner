@@ -98,7 +98,7 @@
 				<option value={key}>{label}</option>
 			{/each}
 		</select>
-		<button>Добавить</button>
+		<button class="primary">Добавить</button>
 	</form>
 	{#if form?.error}<p class="error">{form.error}</p>{/if}
 
@@ -186,7 +186,7 @@
 							/> мин
 						</fieldset>
 						<textarea name="notes" rows="3" aria-label="Заметки" placeholder="Заметки">{task.notes}</textarea>
-						<button>Сохранить</button>
+						<button class="primary">Сохранить</button>
 					</form>
 
 					<!-- Repetition: its own form. "bind:value" is not needed; the select is read when the form is sent. -->
@@ -329,10 +329,11 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 2rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
+
+	/* Search and the new-task form */
 	.search,
 	.add,
 	.edit {
@@ -342,132 +343,267 @@
 		margin-bottom: 0.5rem;
 	}
 	.search input,
-	.add input[name='title'],
 	.edit input[name='title'] {
 		flex: 1;
 		min-width: 8rem;
 	}
-	.search input,
-	.add input,
-	.edit input,
-	select {
-		padding: 0.5rem;
+	.add {
+		margin: 1.25rem 0 0.5rem;
+		padding: 0.75rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
+	}
+	.add input[name='title'] {
+		flex: 1 1 100%;
+		font-size: 1.0625rem;
+	}
+	.add button {
+		margin-left: auto;
 	}
 	.edit textarea {
-		font: inherit;
-		padding: 0.5rem;
 		flex: 1 1 100%;
-		box-sizing: border-box;
 	}
-	.title {
-		flex: 1;
-	}
-	.due {
-		color: #555;
-	}
-	.block {
-		color: #2e7d32;
-	}
-	.block-fields {
-		border: 1px solid #ccc;
-		border-radius: 0.5rem;
-		width: 100%;
-	}
-	.block-fields input[type='number'] {
-		width: 5rem;
-	}
-	.prio {
-		padding: 0 0.4rem;
-		border-radius: 0.5rem;
-		background: #eee;
-	}
-	.prio.high {
-		background: #f8c9c9;
-	}
-	.prio.medium {
-		background: #fde7b0;
-	}
-	li {
-		flex-wrap: wrap;
-	}
-	details {
-		width: 100%;
-	}
-	ul {
-		list-style: none;
-		padding: 0;
-	}
-	li {
-		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
-	}
-	.row,
-	.subtasks li {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.subtasks {
-		padding-left: 1.5rem;
-	}
-	.subtasks li {
-		border: none;
-	}
+
+	/* Lists and filters: pill links. The current one sits deep. */
 	nav {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.4rem;
-		margin-bottom: 1rem;
+		margin: 0.75rem 0;
 	}
-	nav a,
-	.badge {
-		padding: 0.1rem 0.5rem;
-		border: 1px solid #ccc;
+	nav a {
+		padding: 0.2rem 0.65rem;
+		border: 1px solid var(--line);
 		border-radius: 1rem;
+		background: var(--surface);
+		color: var(--ink-soft);
 		text-decoration: none;
-		color: inherit;
-		font-size: 0.85rem;
+		font-size: 0.875rem;
+	}
+	nav a:hover {
+		border-color: var(--field);
+		color: var(--ink);
 	}
 	nav a.active {
-		background: #222;
-		color: #fff;
+		background: var(--level-5);
+		border-color: var(--level-5);
+		color: var(--on-level-5);
+		font-weight: 600;
+	}
+	nav a small {
+		opacity: 0.7;
+		font-variant-numeric: tabular-nums;
 	}
 	.manage {
 		border-style: dashed;
+		background: none;
 	}
-	details {
-		margin-left: 2rem;
+
+	/* The task list */
+	ul {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	/* A task row: [check + title + details] [trash]. The details line spans the full width. */
+	li {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		align-items: start;
+		padding: 0.55rem 0 0.35rem;
+		border-bottom: 1px solid var(--line);
+	}
+	/* The check circle hangs in the left gutter, so wrapped meta lines up under the title. */
+	.row {
+		grid-column: 1;
+		position: relative;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem 0.5rem;
+		padding-left: 2.25rem;
+		min-height: 1.6rem;
+	}
+	.row > form:first-child {
+		position: absolute;
+		left: 0;
+		top: 0;
+	}
+	/* Negative margins keep the full tap area without making the row taller. */
+	.del {
+		grid-column: 2;
+		grid-row: 1;
+		margin: -0.45rem -0.4rem -0.45rem 0;
+	}
+	li > details {
+		grid-column: 1 / -1;
+		margin-left: 2.25rem;
+	}
+	/* The title takes its own line; dates, priority and badges follow on the next. */
+	.title {
+		flex: 1 1 100%;
+		line-height: 1.6rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	li.done .title,
+	.subtasks li.done span {
+		text-decoration: line-through;
+		color: var(--ink-muted);
+	}
+
+	/* Check circle: empty ring, filled deep when done. */
+	.row .check {
+		flex: none;
+		width: 1.6rem;
+		height: 1.6rem;
+		min-height: 0;
+		padding: 0;
+		border: 2px solid var(--field);
+		border-radius: 50%;
+		background: var(--surface);
+		color: transparent;
+		font-size: 0.9rem;
+		line-height: 1;
+	}
+	.row .check:hover {
+		background: var(--wash);
+		color: var(--field);
+	}
+	li.done > .row .check {
+		background: var(--level-4);
+		border-color: var(--level-4);
+		color: var(--on-level-4);
+	}
+
+	/* Meta beside the title */
+	.row small {
+		color: var(--ink-muted);
+		font-size: 0.8125rem;
+	}
+	.due {
+		font-variant-numeric: tabular-nums;
+		color: var(--ink-soft);
+	}
+	.row .due {
+		color: var(--ink-soft);
+	}
+	/* Priority on the depth scale: low is shallow, high is deep. */
+	.row .prio {
+		padding: 0.05rem 0.5rem;
+		border-radius: var(--radius-s);
+		font-weight: 550;
+	}
+	.row .prio.low {
+		background: var(--level-1);
+		color: var(--on-level-1);
+	}
+	.row .prio.medium {
+		background: var(--level-3);
+		color: var(--on-level-3);
+	}
+	.row .prio.high {
+		background: var(--level-5);
+		color: var(--on-level-5);
+	}
+	.badge {
+		padding: 0 0.45rem;
+		border: 1px solid var(--line);
+		border-radius: 1rem;
+		color: var(--ink-soft);
+		text-decoration: none;
+		font-size: 0.8125rem;
+	}
+	.badge:hover {
+		border-color: var(--field);
+	}
+
+	/* Trash: a quiet icon button */
+	.del button {
+		border: none;
+		background: none;
+		opacity: 0.55;
+		padding: 0.3rem 0.5rem;
+	}
+	.del button:hover {
+		opacity: 1;
+		background: var(--wash);
+	}
+
+	/* Opened details */
+	details > summary {
+		font-size: 0.8125rem;
+		color: var(--ink-muted);
+		padding: 0.15rem 0;
+	}
+	/* Once opened, the editor becomes one panel at full row width. */
+	li > details[open] {
+		margin: 0.25rem 0 0.4rem;
+		padding: 0.25rem 0.65rem 0.65rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
+	}
+	details[open] > summary {
+		color: var(--ink-soft);
+		margin-bottom: 0.4rem;
+	}
+	.block-fields {
+		width: 100%;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		color: var(--ink-soft);
+	}
+	.block-fields input[type='number'] {
+		width: 5rem;
 	}
 	.inline {
 		display: inline-flex;
+		flex-wrap: wrap;
 		gap: 0.3rem;
-		margin: 0.3rem 0.3rem 0 0;
+		margin: 0.4rem 0.3rem 0 0;
 	}
-	li.done span {
-		text-decoration: line-through;
-		color: #888;
-	}
-	.del {
-		margin-left: auto;
-	}
-	.check {
-		font-size: 1.2rem;
-		background: none;
-		border: none;
-		cursor: pointer;
-	}
-	.error {
-		color: #b00020;
-	}
-	.divider {
-		border: none;
-		border-top: 1px solid #bbb;
+	.subtasks {
 		margin: 0.5rem 0;
 	}
-	.completed {
-		margin-left: 0;
+	.subtasks li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.1rem 0;
+		border: none;
 	}
-	.empty {
-		color: #888;
+	.subtasks li span {
+		flex: 1;
+	}
+	.subtasks .check {
+		border: none;
+		background: none;
+		padding: 0 0.2rem;
+		font-size: 1.2rem;
+		color: var(--accent);
+	}
+	.subtasks button:not(.check) {
+		min-height: 2rem;
+		padding: 0 0.5rem;
+	}
+
+	/* Groups */
+	h2 {
+		margin-top: 1.75rem;
+	}
+	.divider {
+		margin: 1rem 0 0;
+		border-top: 2px dashed var(--line);
+	}
+	.completed {
+		margin-top: 1.25rem;
+	}
+	.completed > summary {
+		font-size: 0.9375rem;
+		font-weight: 600;
 	}
 </style>

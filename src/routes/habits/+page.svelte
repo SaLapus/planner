@@ -38,19 +38,22 @@
 
 	{#each data.habits as s (s.habit.id)}
 		{@const today = s.days[s.days.length - 1]}
+		{@const level = Math.min(100, Math.round((100 * s.done) / s.target))}
 		<section class="card" class:met={s.met}>
 			<div class="top">
-				<!-- Big "today" button: the whole daily check-in is one tap. -->
+				<!-- Big "today" button: the whole daily check-in is one tap.
+				     It fills like water as the period's progress grows (`style:--fill` sets a CSS variable). -->
 				<form method="POST" action="?/checkin" use:enhance>
 					<input type="hidden" name="id" value={s.habit.id} />
 					<input type="hidden" name="date" value={today.date} />
 					<input type="hidden" name="on" value={!today.checked} />
 					<button
-						class="big"
+						class="big water"
 						class:done={today.checked}
+						style:--fill="{level}%"
 						aria-label={today.checked ? 'Снять отметку за сегодня' : 'Отметить сегодня'}
 					>
-						{today.checked ? '✓' : '○'}
+						<span class="glyph" aria-hidden="true">{today.checked ? '✓' : '○'}</span>
 					</button>
 				</form>
 				<div class="info">
@@ -136,50 +139,81 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	.card {
-		border: 1px solid #ddd;
-		border-radius: 0.75rem;
-		padding: 0.75rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
+		padding: 0.85rem;
 		margin-bottom: 0.75rem;
 	}
 	.card.met {
-		border-color: #2e7d32;
+		border-color: var(--level-4);
 	}
 	.top {
 		display: flex;
-		gap: 0.75rem;
+		gap: 0.85rem;
 		align-items: center;
 	}
 	.info {
 		display: flex;
 		flex-direction: column;
+		min-width: 0;
+	}
+	.info small {
+		color: var(--ink-muted);
+	}
+	.stats {
+		color: var(--ink-soft);
+		font-size: 0.9375rem;
 	}
 	.progress {
-		font-weight: bold;
+		font-weight: 700;
+		color: var(--ink);
+		font-variant-numeric: tabular-nums;
 	}
+
+	/* The big check-in button. Its water level (class "water", see theme.css) is the period's progress. */
 	.big {
-		width: 3.5rem;
-		height: 3.5rem;
+		width: 3.75rem;
+		height: 3.75rem;
+		min-height: 0;
+		padding: 0;
 		border-radius: 50%;
-		border: 2px solid #888;
-		background: none;
-		font-size: 1.6rem;
-		cursor: pointer;
+		border: 2px solid var(--field);
+		background-color: var(--surface);
+		color: var(--field);
+		font-size: 1.5rem;
+		line-height: 1;
+		overflow: hidden;
+		position: relative;
 	}
-	.big.done,
-	.day.done {
-		background: #2e7d32;
-		border-color: #2e7d32;
-		color: white;
+	.big:hover:not(:disabled) {
+		background-color: var(--wash);
 	}
+	/* The mark is painted with the same water line: light where it is under water, blue above. */
+	.glyph {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		color: transparent;
+		background: linear-gradient(to top, var(--on-level-4) var(--fill), var(--field) var(--fill));
+		background-clip: text;
+		-webkit-background-clip: text;
+	}
+	.big.done {
+		border-color: var(--level-5);
+		font-weight: 700;
+	}
+
+	/* The last seven days */
 	.week {
 		display: flex;
 		gap: 0.25rem;
-		margin: 0.75rem 0 0.25rem;
+		margin: 0.85rem 0 0.35rem;
 	}
 	.week form {
 		flex: 1;
@@ -187,37 +221,72 @@
 	.day {
 		width: 100%;
 		min-height: 2.75rem;
+		padding: 0.2rem 0;
 		display: flex;
 		flex-direction: column;
+		align-items: center;
+		line-height: 1.2;
 		font-size: 0.75rem;
-		border: 1px solid #ccc;
-		border-radius: 0.5rem;
-		background: none;
-		cursor: pointer;
+		font-variant-numeric: tabular-nums;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-s);
+		background: var(--paper);
+		color: var(--ink-soft);
 	}
+	.day span:last-child {
+		font-size: 0.9375rem;
+		font-weight: 600;
+	}
+	.week form:last-child .day {
+		border-color: var(--field);
+	}
+	.day.done,
+	.day.done:hover:not(:disabled) {
+		background: var(--level-4);
+		border-color: var(--level-4);
+		color: var(--on-level-4);
+	}
+
 	.row {
 		display: flex;
 		gap: 1rem;
 		align-items: center;
-		font-size: 0.9rem;
+		font-size: 0.875rem;
+	}
+	.row a {
+		text-decoration: none;
+	}
+	.row a:hover {
+		text-decoration: underline;
 	}
 	.link {
 		background: none;
 		border: none;
-		color: #1a56db;
-		cursor: pointer;
+		color: var(--accent);
+		min-height: 2rem;
 		padding: 0;
-		font: inherit;
+	}
+	.link:hover:not(:disabled) {
+		background: none;
+		color: var(--accent-hover);
+		text-decoration: underline;
 	}
 	.add {
 		width: 100%;
 		padding: 0.75rem;
-		font-size: 1rem;
+		border-style: dashed;
+		background: none;
+		color: var(--accent);
+		font-weight: 600;
 	}
 	.new {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
+		padding: 0.85rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
 	}
 	ul {
 		list-style: none;
@@ -226,13 +295,8 @@
 	li {
 		display: flex;
 		justify-content: space-between;
+		align-items: center;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
-	}
-	.error {
-		color: #b00020;
-	}
-	.empty {
-		color: #888;
+		border-bottom: 1px solid var(--line);
 	}
 </style>

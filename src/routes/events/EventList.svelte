@@ -30,7 +30,7 @@
 		margin: 0;
 	}
 	li {
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	a {
 		display: grid;
@@ -39,34 +39,42 @@
 		color: inherit;
 		text-decoration: none;
 	}
-	/* Tasks look different from Events: a green stripe, tinted background and a "Задача" badge. */
+	/* Tasks look different from Events: a stripe, a shallow tint and a "Задача" badge. */
 	li.task {
-		border-left: 4px solid #2e7d32;
+		border-left: 4px solid var(--level-3);
 		padding-left: 0.6rem;
-		background: #f3faf3;
+		background: var(--wash);
+		border-radius: 0 var(--radius-s) var(--radius-s) 0;
+	}
+	li.task + li.task {
+		margin-top: 2px;
 	}
 	.tag {
 		display: inline-block;
 		margin-right: 0.4rem;
 		padding: 0 0.4rem;
-		border-radius: 0.5rem;
-		background: #2e7d32;
-		color: #fff;
+		border-radius: var(--radius-s);
+		background: var(--level-4);
+		color: var(--on-level-4);
 		font-size: 0.75rem;
+		font-weight: 550;
+	}
+	a:hover .title {
+		color: var(--accent);
 	}
 	.when {
 		font-variant-numeric: tabular-nums;
-		color: #555;
+		color: var(--ink-soft);
 		font-size: 0.9rem;
 	}
 	.title {
 		font-weight: 600;
 	}
 	.meta {
-		color: #777;
+		color: var(--ink-muted);
 		font-size: 0.85rem;
 	}
 	.zone {
-		color: #8a5a00;
+		color: var(--ink-soft);
 	}
 </style>

@@ -23,16 +23,15 @@
 	<form method="POST">
 		<EventFields {values} zones={data.zones} />
 		{#if form?.error}<p class="error">{form.error}</p>{/if}
-		<button>Сохранить</button>
+		<button class="primary">Сохранить</button>
 	</form>
 </main>
 
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	button {
 		font: inherit;
@@ -40,6 +39,6 @@
 		min-height: 2.75rem;
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 </style>

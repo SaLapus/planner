@@ -41,9 +41,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 2rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	ul {
 		list-style: none;
@@ -55,7 +54,7 @@
 		gap: 0.5rem;
 		flex-wrap: wrap;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	.label {
 		flex: 1;
@@ -64,9 +63,9 @@
 	small,
 	.hint,
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 </style>

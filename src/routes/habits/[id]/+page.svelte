@@ -22,9 +22,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	form {
 		display: flex;
@@ -32,6 +31,6 @@
 		gap: 0.5rem;
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 </style>

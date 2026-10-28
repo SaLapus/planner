@@ -50,9 +50,8 @@
 <style>
 	main {
 		max-width: 36rem;
-		margin: 2rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	.filter a {
 		margin-right: 0.75rem;
@@ -71,16 +70,16 @@
 		justify-content: space-between;
 		gap: 0.5rem;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	small {
 		display: block;
-		color: #888;
+		color: var(--ink-muted);
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 </style>

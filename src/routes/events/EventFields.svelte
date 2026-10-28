@@ -87,7 +87,7 @@
 		gap: 0.25rem;
 		margin: 0.75rem 0;
 		font-size: 0.9rem;
-		color: #444;
+		color: var(--ink-soft);
 	}
 	.row {
 		display: flex;

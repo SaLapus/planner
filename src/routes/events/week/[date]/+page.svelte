@@ -39,9 +39,8 @@
 <style>
 	main {
 		max-width: 96rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	header {
 		display: flex;
@@ -50,7 +49,8 @@
 		gap: 1rem;
 	}
 	header a {
-		font-size: 2rem;
+		font-size: 1.75rem;
+		line-height: 1;
 		text-decoration: none;
 		padding: 0 0.75rem;
 	}
@@ -71,13 +71,17 @@
 	}
 	section {
 		min-width: 0;
-		padding: 0 0.5rem 0.5rem;
-		border: 1px solid #ddd;
-		border-radius: 0.5rem;
+		padding: 0 0.6rem 0.5rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
 	}
+	/* Today: the deepest border on the page. */
 	section.today {
-		border-color: #0a58ca;
-		box-shadow: 0 0 0 1px #0a58ca;
+		border: 2px solid var(--level-5);
+	}
+	section.today h2 a {
+		color: var(--ink);
 	}
 	h2 {
 		font-size: 0.9rem;
@@ -89,7 +93,7 @@
 		text-decoration: none;
 	}
 	.empty {
-		color: #bbb;
+		color: var(--ink-muted);
 		margin: 0.3rem 0;
 	}
 </style>

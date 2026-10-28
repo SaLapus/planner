@@ -36,7 +36,7 @@
 		<input name="title" placeholder="Название" required />
 		<textarea name="description" placeholder="Описание (необязательно)"></textarea>
 		<label>Срок <input type="date" name="targetDate" /></label>
-		<button>Создать</button>
+		<button class="primary">Создать</button>
 	</form>
 
 	{#if data.other.length}
@@ -56,17 +56,17 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	.card {
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
-		border: 1px solid #ddd;
-		border-radius: 0.75rem;
-		padding: 0.75rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
+		padding: 0.85rem;
 		margin-bottom: 0.75rem;
 		color: inherit;
 		text-decoration: none;
@@ -87,12 +87,12 @@
 		display: flex;
 		justify-content: space-between;
 		padding: 0.4rem 0;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 </style>

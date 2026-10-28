@@ -21,11 +21,11 @@
 	<div class="start">
 		<form method="POST" action="?/start">
 			<input type="hidden" name="period" value="week" />
-			<button>{data.current.week ? 'Открыть обзор этой недели' : 'Начать обзор недели'}</button>
+			<button class="primary">{data.current.week ? 'Открыть обзор этой недели' : 'Начать обзор недели'}</button>
 		</form>
 		<form method="POST" action="?/start">
 			<input type="hidden" name="period" value="month" />
-			<button>{data.current.month ? 'Открыть обзор этого месяца' : 'Начать обзор месяца'}</button>
+			<button class="primary">{data.current.month ? 'Открыть обзор этого месяца' : 'Начать обзор месяца'}</button>
 		</form>
 	</div>
 	<p class="hint">Черновик обычно пишет Claude (по расписанию или в разговоре), а размышления добавляете вы.</p>
@@ -47,9 +47,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	.start {
 		display: flex;
@@ -64,14 +63,14 @@
 		display: flex;
 		flex-direction: column;
 		padding: 0.5rem 0;
-		border-bottom: 1px solid #ddd;
+		border-bottom: 1px solid var(--line);
 	}
 	small,
 	.hint,
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 	.error {
-		color: #b00020;
+		color: var(--danger);
 	}
 </style>

@@ -73,20 +73,16 @@
 <style>
 	main {
 		max-width: 40rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	section {
 		margin-bottom: 2rem;
 	}
 	.hint,
 	.unit {
-		opacity: 0.65;
+		color: var(--ink-muted);
 		font-size: 0.85rem;
-	}
-	.empty {
-		opacity: 0.6;
 	}
 	.head {
 		display: flex;
@@ -102,8 +98,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
-		border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-		border-radius: 0.75rem;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-l);
 		padding: 0.75rem;
 		margin-bottom: 0.75rem;
 		color: inherit;
@@ -128,25 +125,25 @@
 		font-size: 0.7rem;
 		white-space: nowrap;
 	}
-	/* colours are mixed from the text colour, so they work in light and dark schemes */
+	/* Bars on the depth scale: a period that met its target fills deep, the rest stays shallow. */
 	.track {
 		width: 100%;
 		height: 4.5rem;
 		display: flex;
 		align-items: flex-end;
-		background: color-mix(in srgb, currentColor 12%, transparent);
-		border-radius: 0.3rem;
+		background: var(--wash);
+		border-radius: var(--radius-s);
 		overflow: hidden;
 	}
 	.fill {
 		width: 100%;
-		background: #d9822b;
+		background: var(--level-3);
 	}
 	.fill.met {
-		background: #2f9e6b;
+		background: linear-gradient(to top, var(--level-5), var(--level-4));
 	}
 	.fill.open:not(.met) {
-		opacity: 0.55;
+		opacity: 0.7;
 	}
 	progress {
 		width: 100%;

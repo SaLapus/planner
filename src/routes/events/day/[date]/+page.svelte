@@ -29,9 +29,8 @@
 <style>
 	main {
 		max-width: 32rem;
-		margin: 1rem auto;
+		margin: 1rem auto 3rem;
 		padding: 0 1rem;
-		font-family: system-ui, sans-serif;
 	}
 	header {
 		display: flex;
@@ -50,6 +49,6 @@
 		text-transform: capitalize;
 	}
 	.empty {
-		color: #888;
+		color: var(--ink-muted);
 	}
 </style>
