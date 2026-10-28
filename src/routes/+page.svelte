@@ -8,6 +8,7 @@
 	//  * `{#each ...}` repeats markup per item; `{#if ...}` shows it conditionally.
 	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
+	import NotesText from '../lib/NotesText.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -141,11 +142,16 @@
 					{#if task.subtasks.length > 0}
 						<small>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</small>
 					{/if}
+					{#if task.notes !== ''}
+						<small class="notes-mark" title="Есть заметки">📝</small>
+					{/if}
 				</div>
 
 				<!-- <details> is built-in HTML: click the summary to show or hide the content inside. -->
 				<details>
 					<summary aria-label="Подробнее">✎ Подробнее</summary>
+
+					<NotesText notes={task.notes} />
 
 					<form method="POST" action="?/edit" use:enhance class="edit">
 						<input type="hidden" name="id" value={task.id} />
@@ -179,6 +185,7 @@
 								aria-label="Блок: минут"
 							/> мин
 						</fieldset>
+						<textarea name="notes" rows="3" aria-label="Заметки" placeholder="Заметки">{task.notes}</textarea>
 						<button>Сохранить</button>
 					</form>
 
@@ -265,6 +272,10 @@
 							<button aria-label="Убрать тег {tag}">#{tag} ✕</button>
 						</form>
 					{/each}
+					<form method="POST" action="?/duplicate" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<button>Дублировать</button>
+					</form>
 				</details>
 				<form method="POST" action="?/delete" use:enhance class="del">
 					<input type="hidden" name="id" value={task.id} />
@@ -341,6 +352,12 @@
 	.edit input,
 	select {
 		padding: 0.5rem;
+	}
+	.edit textarea {
+		font: inherit;
+		padding: 0.5rem;
+		flex: 1 1 100%;
+		box-sizing: border-box;
 	}
 	.title {
 		flex: 1;

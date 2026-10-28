@@ -140,6 +140,7 @@ export function feedModule(
 				cal.createEvent({
 					id: `task-${t.id}@planner`,
 					summary: `[Задача] ${t.title}`,
+					description: t.notes || null,
 					timezone: homeTimeZone,
 					start,
 					end: start.add({ minutes: t.timeBlock.minutes })

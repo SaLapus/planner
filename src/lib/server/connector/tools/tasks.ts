@@ -11,6 +11,9 @@ const startSchema = z
 	.describe(
 		'Start date, a local date "2026-03-30" (Home time zone). Before it the Task is not Active (it is hidden from the Active list, not late). Must not be after the due date. If omitted, the default rule applies (the day the Task was created, or its due date if that is earlier)'
 	);
+/** Notes as the Core takes them: null (clear) becomes the empty text; undefined stays 'not given'. */
+const notesInput = (notes: string | null | undefined): string | undefined => (notes === null ? '' : notes);
+
 const prioritySchema = z.enum(['none', 'low', 'medium', 'high']);
 const timeBlockSchema = z
 	.object({
@@ -41,33 +44,48 @@ const repeatSchema = z
 		'Repetition. "fixed" follows an RRULE counted from the due date (requires a due date); "after" schedules the next one N units after the day it is completed. Completing a repeating Task keeps it as done and creates the next instance (its id is nextId on the completed Task).'
 	);
 
+const notesSchema = z
+	.string()
+	.describe(
+		'Notes: free text for information to read (book and chapter, links, a bookmark), kept as written with line breaks. Not for steps: tickable steps are Subtasks (add_subtask)'
+	);
+
 export const registerTaskTools: RegisterTools = (server, { planner, actor }) => {
 	server.registerTool(
 		'create_task',
 		{
 			description:
-				'Create a Task (a to-do item) with a title and optional due date/time, priority, project and tags. Text is stored exactly as given, in any language. A Task is Active once its Start date (startDate) has arrived; pass start to create one that starts later. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
+				'Create a Task (a to-do item) with a title and optional due date/time, priority, notes, project and tags. Notes hold information to read (book, chapter, links, a bookmark); Subtasks hold tickable steps. Text is stored exactly as given, in any language. A Task is Active once its Start date (startDate) has arrived; pass start to create one that starts later. Returns the new Task (dueDate/dueTime are in the owner\'s Home time zone).',
 			inputSchema: z.object({
 				title: z.string().describe('What needs to be done'),
 				due: dueSchema.optional(),
 				start: startSchema.optional(),
 				priority: prioritySchema.optional(),
+				notes: notesSchema.nullable().optional(),
 				time_block: timeBlockSchema.optional(),
 				project_id: z.number().int().optional().describe('Project id from list_projects'),
 				tags: z.array(z.string()).optional().describe('Free-form tags'),
-				repeat: repeatSchema.optional()
+				repeat: repeatSchema.optional(),
+				subtasks: z
+					.array(z.string())
+					.optional()
+					.describe(
+						'Subtask titles, created unticked in this order (tickable steps). Blank titles are rejected and nothing is created. Subtasks cannot be replaced through update_task; use add_subtask / remove_subtask'
+					)
 			})
 		},
-		reply(({ title, due, start, priority, time_block, project_id, tags, repeat }) =>
+		reply(({ title, due, start, priority, notes, time_block, project_id, tags, repeat, subtasks }) =>
 			planner.createTask(actor, {
 				title,
 				due,
 				start,
 				priority,
+				notes: notesInput(notes),
 				timeBlock: time_block,
 				projectId: project_id,
 				tags,
-				repeat
+				repeat,
+				subtasks
 			})
 		)
 	);
@@ -76,19 +94,41 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'update_task',
 		{
 			description:
-				'Change a Task\'s title, due date/time, Start date, priority, Time block or repetition. Only the fields you pass change; pass start: null to reset the Start date to the default rule (postponing a Task = moving start later), due: null to remove the due date, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
+				'Change a Task\'s title, due date/time, Start date, priority, Notes, Time block or repetition. Notes hold information to read (book, chapter, links, a bookmark); Subtasks hold tickable steps. Only the fields you pass change; pass start: null to reset the Start date to the default rule (postponing a Task = moving start later), due: null to remove the due date, notes: null (or "") to clear the Notes, time_block: null to clear the Time block and repeat: null to stop repeating. Returns the updated Task.',
 			inputSchema: z.object({
 				id: z.number().int().describe('Task id from list_tasks'),
 				title: z.string().optional(),
 				due: dueSchema.nullable().optional(),
 				start: startSchema.nullable().optional(),
 				priority: prioritySchema.optional(),
+				notes: notesSchema.nullable().optional(),
 				time_block: timeBlockSchema.nullable().optional(),
 				repeat: repeatSchema.nullable().optional()
 			})
 		},
+		reply(({ id, time_block, notes, ...changes }) =>
+			planner.updateTask(actor, id, {
+				...changes,
+				notes: notesInput(notes),
+				timeBlock: time_block
+			})
+		)
+	);
+
+	server.registerTool(
+		'duplicate_task',
+		{
+			description:
+				'Make a Duplicate of a Task (open or completed, not in Trash): a new Task with the same title, Notes, priority, project, tags, Milestone and Subtasks (in order, all unticked). It is open even if the source is done, and it does not repeat; it is a separate Task, unlinked to the source (not the next instance of a repeating Task). Dates: due and time_block keep the source\'s value when omitted and are removed with null; start, when omitted, follows the default Start date rule (not the source\'s Start date), and a given start must not be after the due date. To change anything else, update the returned Task afterwards. Fails if the Task is missing or in Trash, or its project is archived. Returns the new Task.',
+			inputSchema: z.object({
+				id: z.number().int().describe('Id of the Task to duplicate'),
+				due: dueSchema.nullable().optional(),
+				start: startSchema.optional(),
+				time_block: timeBlockSchema.nullable().optional()
+			})
+		},
 		reply(({ id, time_block, ...changes }) =>
-			planner.updateTask(actor, id, { ...changes, timeBlock: time_block })
+			planner.duplicateTask(actor, id, { ...changes, timeBlock: time_block })
 		)
 	);
 
@@ -106,7 +146,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		'search_tasks',
 		{
 			description:
-				'Find Tasks (done ones too), oldest first. text: the title contains it (case-insensitive; may be empty when another filter is given). Optional filters, all combined: project_id (null = no project), tag, and due_from / due_to (inclusive local dates YYYY-MM-DD on the due date; Tasks without a due date never match them). At least one of text or a filter is needed.',
+				'Find Tasks (done ones too), oldest first. text: the title or Notes contain it (case-insensitive; may be empty when another filter is given). Optional filters, all combined: project_id (null = no project), tag, and due_from / due_to (inclusive local dates YYYY-MM-DD on the due date; Tasks without a due date never match them). At least one of text or a filter is needed.',
 			inputSchema: z.object({
 				text: z.string().optional(),
 				project_id: z.number().int().nullable().optional(),

@@ -43,8 +43,9 @@ describe('file database', () => {
 		const db1 = openDatabase(file);
 		createPlanner({ db: db1, clock, homeTimeZone: home });
 		const version = (db1.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+		db1.exec('ALTER TABLE task DROP COLUMN notes');
 		db1.exec('ALTER TABLE task DROP COLUMN start_date');
-		db1.exec(`PRAGMA user_version = ${version - 2}`);
+		db1.exec(`PRAGMA user_version = ${version - 3}`);
 		const insert = db1.prepare('INSERT INTO task (title, created_at, due_date) VALUES (?, ?, ?)');
 		insert.run('due before creation', '2026-01-05T22:30:00.000Z', '2026-01-03'); // Home day 2026-01-06
 		insert.run('due after creation', '2026-01-05T22:30:00.000Z', '2026-02-01');
@@ -58,6 +59,7 @@ describe('file database', () => {
 			['due after creation', '2026-01-06'],
 			['no due', '2026-01-06']
 		]);
+		expect(planner.listTasks().map((t) => t.notes)).toEqual(['', '', '']);
 		expect(planner.changeLog()).toEqual([]);
 		db2.close();
 

@@ -142,11 +142,17 @@ export const actions: Actions = {
 				due: dueOf(data),
 				start: startDateOf(data),
 				priority: priorityOf(data),
+				notes: String(data.get('notes') ?? ''),
 				timeBlock: blockOf(data)
 			});
 		} catch (e) {
 			return fail(400, { error: errorText(e) });
 		}
+	},
+	// A Duplicate with the source's dates: no changes are passed, so every date is kept.
+	duplicate: async ({ request, locals }) => {
+		const f = await request.formData();
+		return run(() => getPlanner().duplicateTask(actorOf(locals), Number(f.get('id'))));
 	},
 	// Repetition has its own small form so that saving the main edit form never changes it.
 	setRepeat: async ({ request, locals }) => {
