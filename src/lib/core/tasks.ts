@@ -97,6 +97,8 @@ export interface TaskApi {
 			projectId?: number | null;
 			tags?: string[];
 			repeat?: Repeat | null;
+			/** Subtask titles, created unticked in this order as part of the same creation. */
+			subtasks?: string[];
 		}
 	): Task;
 	updateTask(
@@ -161,6 +163,13 @@ interface TaskRow {
 	milestone_id: number | null;
 	repeat: string | null;
 	next_id: number | null;
+}
+
+/** The Subtask title rule, shared by adding one Subtask and creating a Task with a list. */
+export function cleanSubtaskTitle(title: string): string {
+	const t = title.trim();
+	if (!t) throw new Error('Subtask title must not be empty');
+	return t;
 }
 
 /** Reads a Task with its project, tags and subtasks. Shared with organising.ts. */
@@ -523,6 +532,7 @@ export function taskModule({
 			const priority = checkPriority(input.priority ?? 'none');
 			const block = input.timeBlock ? parseTimeBlock(input.timeBlock, homeTimeZone) : null;
 			const repeat = parseRepeat(input.repeat, due !== null);
+			const subtasks = (input.subtasks ?? []).map(cleanSubtaskTitle);
 			const created = nowIso();
 			const startDate = resolveStartDate(
 				due?.date ?? null,
@@ -554,6 +564,11 @@ export function taskModule({
 						tag
 					);
 				}
+				subtasks.forEach((title, position) =>
+					db
+						.prepare('INSERT INTO subtask (task_id, title, position) VALUES (?, ?, ?)')
+						.run(Number(lastInsertRowid), title, position)
+				);
 				const task = getTask(Number(lastInsertRowid));
 				record(actor, 'task.create', 'task', task.id, null, task);
 				return task;
