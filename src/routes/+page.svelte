@@ -8,7 +8,7 @@
 	//  * `{#each ...}` repeats markup per item; `{#if ...}` shows it conditionally.
 	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
-	import NotesText from './NotesText.svelte';
+	import NotesText from '../lib/NotesText.svelte';
 
 	let { data, form }: PageProps = $props();
 

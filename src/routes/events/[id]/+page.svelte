@@ -1,5 +1,5 @@
 <script lang="ts">
-	import NotesText from '../../NotesText.svelte';
+	import NotesText from '../../../lib/NotesText.svelte';
 	import EventFields from '../EventFields.svelte';
 	import { describeRule } from '../recurrence-form.js';
 	import type { PageProps } from './$types';

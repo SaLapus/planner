@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Shows Notes with tappable links and kept line breaks. Everything is a plain element
 	// and Svelte escapes the text, so nothing in Notes can inject HTML.
-	import { notesPieces } from './events/notes.js';
+	import { notesPieces } from './notes.js';
 
 	let { notes }: { notes: string } = $props();
 	const pieces = $derived(notesPieces(notes));
