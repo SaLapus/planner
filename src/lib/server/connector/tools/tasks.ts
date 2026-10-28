@@ -11,6 +11,9 @@ const startSchema = z
 	.describe(
 		'Start date, a local date "2026-03-30" (Home time zone). Before it the Task is not Active (it is hidden from the Active list, not late). Must not be after the due date. If omitted, the default rule applies (the day the Task was created, or its due date if that is earlier)'
 	);
+/** Notes as the Core takes them: null (clear) becomes the empty text; undefined stays 'not given'. */
+const notesInput = (notes: string | null | undefined): string | undefined => (notes === null ? '' : notes);
+
 const prioritySchema = z.enum(['none', 'low', 'medium', 'high']);
 const timeBlockSchema = z
 	.object({
@@ -77,7 +80,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 				due,
 				start,
 				priority,
-				notes: notes ?? undefined,
+				notes: notesInput(notes),
 				timeBlock: time_block,
 				projectId: project_id,
 				tags,
@@ -106,7 +109,7 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 		reply(({ id, time_block, notes, ...changes }) =>
 			planner.updateTask(actor, id, {
 				...changes,
-				notes: notes === null ? '' : notes,
+				notes: notesInput(notes),
 				timeBlock: time_block
 			})
 		)
