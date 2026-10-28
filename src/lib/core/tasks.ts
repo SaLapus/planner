@@ -50,6 +50,8 @@ export interface Task {
 	/** The day the Task becomes relevant (Home-zone date). Never blank. See `defaultStartDate`. */
 	startDate: string;
 	priority: Priority;
+	/** Free text to read (book, links, a bookmark); empty means no Notes. Subtasks are for tickable steps. */
+	notes: string;
 	/** Planned slot in the day (0..1). Independent of the due date. */
 	timeBlock: TimeBlock | null;
 	/** Project this Task belongs to (0..1). Managed by organising.ts. */
@@ -93,6 +95,7 @@ export interface TaskApi {
 			/** Start date as `YYYY-MM-DD`; omitted or null means the default rule. Must not be after the due date. */
 			start?: string | null;
 			priority?: Priority;
+			notes?: string;
 			timeBlock?: TimeBlockInput;
 			projectId?: number | null;
 			tags?: string[];
@@ -111,6 +114,8 @@ export interface TaskApi {
 			 */
 			start?: string | null;
 			priority?: Priority;
+			/** Absent leaves the Notes unchanged; an empty string clears them. */
+			notes?: string;
 			timeBlock?: TimeBlockInput;
 			repeat?: Repeat | null;
 		}
@@ -155,6 +160,7 @@ interface TaskRow {
 	due_time: string | null;
 	start_date: string;
 	priority: Priority;
+	notes: string;
 	project_id: number | null;
 	block_start: string | null;
 	block_minutes: number | null;
@@ -186,6 +192,7 @@ function toTask(db: DatabaseSync, r: TaskRow): Task {
 		dueTime: r.due_time,
 		startDate: r.start_date,
 		priority: r.priority,
+		notes: r.notes,
 		timeBlock: r.block_start === null ? null : { start: r.block_start, minutes: r.block_minutes! },
 		projectId: r.project_id,
 		tags: tags.map((t) => t.tag),
@@ -300,8 +307,8 @@ export function taskModule({
 			)?.next_id;
 			db.prepare(
 				`INSERT OR REPLACE INTO task
-				 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 (id, title, completed_at, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat, next_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			).run(
 				t.id,
 				t.title,
@@ -312,6 +319,8 @@ export function taskModule({
 				// Snapshots from before the Start date existed have none: apply the default rule.
 				t.startDate ?? defaultStartDate(t.createdAt, t.dueDate, homeTimeZone),
 				t.priority,
+				// Snapshots from before Notes existed have none.
+				t.notes ?? '',
 				t.projectId,
 				t.timeBlock?.start ?? null,
 				t.timeBlock?.minutes ?? null,
@@ -534,7 +543,7 @@ export function taskModule({
 				if (projectId !== null) assertProjectOpen(db, projectId);
 				const { lastInsertRowid } = db
 					.prepare(
-						'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+						'INSERT INTO task (title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, repeat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 					)
 					.run(
 						title,
@@ -543,6 +552,7 @@ export function taskModule({
 						due?.time ?? null,
 						startDate,
 						priority,
+						input.notes ?? '',
 						projectId,
 						block?.start ?? null,
 						block?.minutes ?? null,
@@ -589,13 +599,14 @@ export function taskModule({
 					dueDate !== null
 				);
 				db.prepare(
-					'UPDATE task SET title = ?, due_date = ?, due_time = ?, start_date = ?, priority = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
+					'UPDATE task SET title = ?, due_date = ?, due_time = ?, start_date = ?, priority = ?, notes = ?, block_start = ?, block_minutes = ?, repeat = ? WHERE id = ?'
 				).run(
 					title,
 					dueDate,
 					dueTime,
 					startDate,
 					priority,
+					changes.notes ?? before.notes,
 					block?.start ?? null,
 					block?.minutes ?? null,
 					repeat === null ? null : JSON.stringify(repeat),

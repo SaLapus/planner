@@ -179,7 +179,11 @@ const MIGRATIONS: Migration[] = [
 		}[];
 		const set = db.prepare('UPDATE task SET start_date = ? WHERE id = ?');
 		for (const r of rows) set.run(defaultStartDate(r.created_at, r.due_date, homeTimeZone), r.id);
-	}
+	},
+	// Notes on a Task (#36): free text, empty means none. Same shape as Event notes.
+	`
+	ALTER TABLE task ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+	`
 ];
 
 export function migrate(db: DatabaseSync, homeTimeZone: string): void {
