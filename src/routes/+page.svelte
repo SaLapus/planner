@@ -273,6 +273,10 @@
 							<button aria-label="Убрать тег {tag}">#{tag} ✕</button>
 						</form>
 					{/each}
+					<form method="POST" action="?/duplicate" use:enhance class="inline">
+						<input type="hidden" name="id" value={task.id} />
+						<button>Дублировать</button>
+					</form>
 				</details>
 				<form method="POST" action="?/delete" use:enhance class="del">
 					<input type="hidden" name="id" value={task.id} />
