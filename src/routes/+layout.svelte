@@ -31,10 +31,12 @@
 {@render children()}
 
 <style>
-	/* A full-width deep band; its colour matches the phone's status bar (theme-color in app.html). */
+	/* A full-width band, pale in light mode and raised graphite in dark; its colour matches the
+	   phone's status bar (theme-color in app.html). */
 	.topbar {
 		background: var(--bar);
 		color: var(--on-bar);
+		border-bottom: 1px solid var(--bar-line);
 	}
 	.inner {
 		max-width: 40rem;
