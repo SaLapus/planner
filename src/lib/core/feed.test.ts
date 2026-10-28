@@ -105,6 +105,19 @@ describe('calendar feed: time-blocked Tasks', () => {
 		expect(timeZones).toContain('Europe/Istanbul');
 	});
 
+	it('gives a Task with Notes a description, escaped like Event notes, and none without Notes', () => {
+		const { planner } = createTestPlanner();
+		const block = { start: '2026-03-30T10:00', minutes: 60 };
+		const notes = 'стр. 87; a, b\nhttps://x.y';
+		const withNotes = planner.createTask('owner', { title: 'Читать', timeBlock: block, notes });
+		const without = planner.createTask('owner', { title: 'Писать', timeBlock: block });
+		const events = parse(planner.calendarFeed());
+		const get = (id: number) => events.find((e) => e.uid === `task-${id}@planner`)!.component;
+		expect(get(withNotes.id).getFirstPropertyValue('description')).toBe(notes);
+		expect(get(withNotes.id).getFirstProperty('description')!.toICALString()).toContain('87\\; a\\, b\\n');
+		expect(get(without.id).getFirstProperty('description')).toBeNull();
+	});
+
 	it('exports only the open instance of a repeating Task, not its completed history', () => {
 		const { planner } = createTestPlanner({ now: '2026-03-30T08:00:00Z' });
 		const t = planner.createTask('owner', {

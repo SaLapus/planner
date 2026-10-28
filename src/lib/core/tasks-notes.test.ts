@@ -36,4 +36,28 @@ describe('Task Notes', () => {
 		planner.restoreItem('owner', 'task', t.id);
 		expect(planner.getTask(t.id).notes).toBe('keep me');
 	});
+
+	it('the next instance of a repeating Task starts with the Notes the completed one had', () => {
+		const { planner } = createTestPlanner({ now: '2026-03-30T08:00:00Z' });
+		const t = planner.createTask('owner', {
+			title: 'Читать',
+			due: '2026-03-30',
+			notes: 'остановился: стр. 87',
+			repeat: { type: 'fixed', rrule: 'FREQ=WEEKLY;BYDAY=MO' }
+		});
+		planner.updateTask('owner', t.id, { notes: 'остановился: стр. 112' });
+		const done = planner.completeTask('owner', t.id);
+		expect(planner.getTask(done.nextId!).notes).toBe('остановился: стр. 112');
+		expect(planner.getTask(t.id).notes).toBe('остановился: стр. 112');
+	});
+
+	it('search finds Tasks by text in Notes as well as in the title, case-insensitively', () => {
+		const { planner } = createTestPlanner();
+		const a = planner.createTask('owner', { title: 'Купить молоко' });
+		const b = planner.createTask('owner', { title: 'Книга', notes: 'Skiena, гл. 3.4 про МОЛОКО' });
+		planner.createTask('owner', { title: 'Другое', notes: 'ничего' });
+		expect(planner.searchTasks('молоко').map((t) => t.id)).toEqual([a.id, b.id]);
+		expect(planner.searchTasks('skiena').map((t) => t.id)).toEqual([b.id]);
+		expect(planner.searchTasks('книга').map((t) => t.id)).toEqual([b.id]);
+	});
 });
