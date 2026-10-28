@@ -156,7 +156,7 @@ export interface TaskApi {
 	 */
 	tasksSplit(filter?: TaskFilter): { active: Task[]; notStarted: Task[]; completed: Task[] };
 	/**
-	 * Case-insensitive title search over all Tasks (done ones included), oldest first, optionally narrowed by
+	 * Case-insensitive search of title and Notes over all Tasks (done ones included), oldest first, optionally narrowed by
 	 * Project, Tag and a due-date range (`dueFrom`/`dueTo`, inclusive "YYYY-MM-DD"; Tasks without a due date
 	 * never match a date bound). Empty text matches every title, but with no text and no filter nothing is returned.
 	 */
@@ -451,8 +451,8 @@ export function taskModule({
 		}
 		const { lastInsertRowid } = db
 			.prepare(
-				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, project_id, block_start, block_minutes, milestone_id, repeat)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO task (id, title, created_at, due_date, due_time, start_date, priority, notes, project_id, block_start, block_minutes, milestone_id, repeat)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.run(
 				id ?? null,
@@ -462,6 +462,7 @@ export function taskModule({
 				next.dueTime,
 				startDate,
 				t.priority,
+				t.notes,
 				t.projectId,
 				timeBlock?.start ?? null,
 				timeBlock?.minutes ?? null,
@@ -738,7 +739,7 @@ export function taskModule({
 			if (!needle && !narrowed) return [];
 			return this.listTasks(rest).filter(
 				(t) =>
-					t.title.toLowerCase().includes(needle) &&
+					(t.title.toLowerCase().includes(needle) || t.notes.toLowerCase().includes(needle)) &&
 					(dueFrom === undefined || (t.dueDate !== null && t.dueDate >= dueFrom)) &&
 					(dueTo === undefined || (t.dueDate !== null && t.dueDate <= dueTo))
 			);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import NotesText from '../../NotesText.svelte';
 	import EventFields from '../EventFields.svelte';
 	import { describeRule } from '../recurrence-form.js';
 	import type { PageProps } from './$types';
@@ -32,6 +33,8 @@
 	{#if data.event.recurrence}
 		<p class="rule">Повторяется: {describeRule(data.event.recurrence, data.event.timeZone)}</p>
 	{/if}
+
+	<NotesText notes={data.shown.notes} />
 
 	<form method="POST" action="?/save">
 		{#if data.occ}

@@ -8,6 +8,7 @@
 	//  * `{#each ...}` repeats markup per item; `{#if ...}` shows it conditionally.
 	import { enhance } from '$app/forms';
 	import type { PageProps } from './$types';
+	import NotesText from './NotesText.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -150,9 +151,7 @@
 				<details>
 					<summary aria-label="Подробнее">✎ Подробнее</summary>
 
-					{#if task.notes !== ''}
-						<p class="notes">{task.notes}</p>
-					{/if}
+					<NotesText notes={task.notes} />
 
 					<form method="POST" action="?/edit" use:enhance class="edit">
 						<input type="hidden" name="id" value={task.id} />
@@ -353,11 +352,6 @@
 	.edit input,
 	select {
 		padding: 0.5rem;
-	}
-	.notes {
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-		margin: 0.5rem 0;
 	}
 	.edit textarea {
 		font: inherit;
