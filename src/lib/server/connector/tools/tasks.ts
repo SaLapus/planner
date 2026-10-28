@@ -113,6 +113,23 @@ export const registerTaskTools: RegisterTools = (server, { planner, actor }) => 
 	);
 
 	server.registerTool(
+		'duplicate_task',
+		{
+			description:
+				'Make a Duplicate of a Task (open or completed, not in Trash): a new Task with the same title, Notes, priority, project, tags, Milestone and Subtasks (in order, all unticked). It is open even if the source is done, and it does not repeat; it is a separate Task, unlinked to the source (not the next instance of a repeating Task). Dates: due and time_block keep the source\'s value when omitted and are removed with null; start, when omitted, follows the default Start date rule (not the source\'s Start date), and a given start must not be after the due date. To change anything else, update the returned Task afterwards. Fails if the Task is missing or in Trash, or its project is archived. Returns the new Task.',
+			inputSchema: z.object({
+				id: z.number().int().describe('Id of the Task to duplicate'),
+				due: dueSchema.nullable().optional(),
+				start: startSchema.optional(),
+				time_block: timeBlockSchema.nullable().optional()
+			})
+		},
+		reply(({ id, time_block, ...changes }) =>
+			planner.duplicateTask(actor, id, { ...changes, timeBlock: time_block })
+		)
+	);
+
+	server.registerTool(
 		'get_task_list',
 		{
 			description:
